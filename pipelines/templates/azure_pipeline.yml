@@ -1,0 +1,44 @@
+parameters:
+  - name: stage
+  - name: variableTemplateName
+  - name: pool
+  - name: environment
+  - name: condition
+    type: object
+  - name: conditionBuild
+    type: boolean
+    default: true
+
+stages:
+  - stage: ${{ parameters.stage }}
+    condition: ${{ parameters.condition }}
+    variables:
+      - template: "../variable_templates/common.yml"
+      - template: ${{ parameters.variableTemplateName }}
+    jobs:
+      - job: DataBase_Deploy
+        pool: 
+          vmImage: ${{ parameters.pool }}
+        condition: ${{parameters.conditionBuild}}
+        steps:
+          - checkout: self
+
+          - task: UsePythonVersion@0
+            displayName: 'Use Python 3.8.x'
+            inputs:
+              versionSpec: '3.8.x'
+
+          - task: Bash@3
+            inputs:
+              targetType: 'inline'
+              script: |
+                echo 'Starting bash task'
+                echo "PROJECT_FOLDER $(PROJECT_FOLDER)"
+                python --version
+                echo 'Step 1: Installing schemachange'
+                pip install schemachange --upgrade
+                echo 'Step 2: Running schemachange'
+                schemachange -f $(PROJECT_FOLDER)/migrations/$(ENV) -a $(SF_ACCOUNT) -u $(SF_USERNAME) -r $(SF_ROLE) -w $(SF_WAREHOUSE) -d $(SF_DATABASE) -c $(SF_DATABASE).SCHEMACHANGE.CHANGE_HISTORY --create-change-history-table
+            env:
+              SNOWFLAKE_PASSWORD: $(SF_PASSWORD)
+          

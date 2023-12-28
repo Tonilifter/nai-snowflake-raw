@@ -1,0 +1,28 @@
+trigger: 
+  branches:
+    include:
+    - develop # DEV
+    - main    # PRO
+  paths:
+    include:
+    - migrations
+
+name: '$(Date:yyyyMMdd)-$(Build.BuildId)'
+
+stages:
+
+  - template: ./templates/azure_pipeline.yml
+    parameters:
+      stage: "Lab"
+      variableTemplateName: "../variable_templates/lab.yml"
+      pool: "ubuntu-latest"
+      environment: "Laboratory"
+      condition: eq(variables['Build.Reason'], 'Manual')
+
+  - template: ./templates/azure_pipeline.yml
+    parameters:
+      stage: "Dev"
+      variableTemplateName: "../variable_templates/dev.yml"
+      pool: "ubuntu-latest"
+      environment: "Development"
+      condition: eq(variables['Build.Reason'], 'Manual')
