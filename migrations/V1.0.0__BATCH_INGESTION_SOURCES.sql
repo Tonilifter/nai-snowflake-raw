@@ -10,7 +10,7 @@ create or replace table ECI_INGESTION_TOOLS.BATCH.TB_FILE_CONFIG (
     FL_HAS_HEADER boolean default false comment 'Flag to control if the file has headers or not',
     constraint _tables_config_pk primary key (ID_FILE)
 );
-ç
+
 create or replace table ECI_INGESTION_TOOLS.BATCH.TB_FIELDS_CONFIG (
     ID_FILE number not null comment 'Unique identifier for the file/table of this field',
     DS_FIELD varchar not null comment 'Field that will be parsed in file and load into the file/table referenced in FILE_ID',
