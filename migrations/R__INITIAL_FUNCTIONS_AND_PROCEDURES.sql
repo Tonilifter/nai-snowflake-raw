@@ -103,6 +103,9 @@ $$
 $$
 ;
 
+GRANT USAGE ON PROCEDURE ECI_INGESTION_TOOLS.STREAMING.CREATE_KAFKA_FLATTEN_VIEW(VARCHAR, VARCHAR) TO ROLE {{ environment }}_LND_NA_DEVELOPER_FR;
+
+
 -- Crea una vista a partir de una tabla Kafka con inyección de esquema
 CREATE OR REPLACE PROCEDURE ECI_INGESTION_TOOLS.STREAMING.CREATE_KAFKA_SCHEMA_VIEW (
   source_table_name VARCHAR, -- Nombre de la tabla Kafka, incluido base de datos y esquema
