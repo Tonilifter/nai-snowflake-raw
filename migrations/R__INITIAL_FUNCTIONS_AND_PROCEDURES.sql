@@ -25,6 +25,7 @@ CREATE OR REPLACE FUNCTION ECI_INGESTION_TOOLS.UTILS.parse_field_type ( col stri
      end
   $$
   ;
+GRANT ALL PRIVILEGES ON FUNCTION ECI_INGESTION_TOOLS.UTILS.parse_field_type(string, int, int) TO ROLE {{ environment }}_LND_NA_DEVELOPER_FR;
 
 -- Funcion para calcular los campos que conforman la PK de una tabla y devolverlos en un array
 create or replace function ECI_INGESTION_TOOLS.UTILS.get_table_pk_array (DDL string)
@@ -51,6 +52,7 @@ $$
     return [];
 $$
 ;
+GRANT ALL PRIVILEGES ON FUNCTION ECI_INGESTION_TOOLS.UTILS.get_table_pk_array(string) TO ROLE {{ environment }}_LND_NA_DEVELOPER_FR;
 
 -- Crea una vista aplanada de una tabla Kafka
 CREATE OR REPLACE PROCEDURE ECI_INGESTION_TOOLS.STREAMING.CREATE_KAFKA_FLATTEN_VIEW (
@@ -102,8 +104,7 @@ $$
     END;
 $$
 ;
-
-GRANT USAGE ON PROCEDURE ECI_INGESTION_TOOLS.STREAMING.CREATE_KAFKA_FLATTEN_VIEW(VARCHAR, VARCHAR) TO ROLE {{ environment }}_LND_NA_DEVELOPER_FR;
+GRANT ALL PRIVILEGES ON PROCEDURE ECI_INGESTION_TOOLS.STREAMING.CREATE_KAFKA_FLATTEN_VIEW(VARCHAR, VARCHAR) TO ROLE {{ environment }}_LND_NA_DEVELOPER_FR;
 
 
 -- Crea una vista a partir de una tabla Kafka con inyección de esquema
@@ -129,6 +130,7 @@ $$
     END;
 $$
 ;
+GRANT ALL PRIVILEGES ON PROCEDURE ECI_INGESTION_TOOLS.STREAMING.CREATE_KAFKA_SCHEMA_VIEW(VARCHAR, VARCHAR) TO ROLE {{ environment }}_LND_NA_DEVELOPER_FR;
 
 -- Crea una vista de una tabla SNP Glue
 CREATE OR REPLACE PROCEDURE ECI_INGESTION_TOOLS.STREAMING.CREATE_GLUE_VIEW (
@@ -150,6 +152,7 @@ $$
     END;
 $$
 ;
+GRANT ALL PRIVILEGES ON PROCEDURE ECI_INGESTION_TOOLS.STREAMING.CREATE_GLUE_VIEW(VARCHAR, VARCHAR) TO ROLE {{ environment }}_LND_NA_DEVELOPER_FR;
 
 
 -- Procedimiento para consolidación de tablas streaming
@@ -263,13 +266,14 @@ $$
 	END;
 $$
 ;
+GRANT ALL PRIVILEGES ON PROCEDURE ECI_INGESTION_TOOLS.STREAMING.CONSOLIDATE_TABLE_MERGE(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR) TO ROLE {{ environment }}_LND_NA_DEVELOPER_FR;
 
 
 -- Procedimiento que comprueba si existen nuevas tablas procedentes de una fuente Streaming
 CREATE OR REPLACE PROCEDURE ECI_INGESTION_TOOLS.STREAMING.CHECK_NEW_STREAMING_TABLE (
     origin_database VARCHAR, -- Base de datos Origen donde buscar nuevas tablas
     origin_schema VARCHAR, -- Esquema Origen donde buscar nuevas tablas
-	  table_prefix VARCHAR, -- Prefijo de las tablas a buscar
+	table_prefix VARCHAR, -- Prefijo de las tablas a buscar
   	consolidated_table_suffix VARCHAR, -- Sufijo de las tablas consolidadas a descartar
     is_schema_infered BOOLEAN, --- Indica si la tabla se ha generado con inferencia de esquema o no. Para SNP Glue el valor siempre será TRUE
     is_glue BOOLEAN --- Indica si la tabla proviene de SNP Glue o no. (true/false)
@@ -341,6 +345,7 @@ $$
     END;
 $$
 ;
+GRANT ALL PRIVILEGES ON PROCEDURE ECI_INGESTION_TOOLS.STREAMING.CHECK_NEW_STREAMING_TABLE(VARCHAR, VARCHAR, VARCHAR, VARCHAR, BOOLEAN, BOOLEAN) TO ROLE {{ environment }}_LND_NA_DEVELOPER_FR;
 
 
 create or replace procedure ECI_INGESTION_TOOLS.BATCH.SP_GET_ADL_PATH (file_name varchar)
@@ -368,6 +373,7 @@ exception
         
 end;
 $$;
+GRANT ALL PRIVILEGES ON PROCEDURE ECI_INGESTION_TOOLS.BATCH.SP_GET_ADL_PATH(VARCHAR) TO ROLE {{ environment }}_LND_NA_DEVELOPER_FR;
 
 
 create or replace procedure ECI_INGESTION_TOOLS.BATCH.SP_LOAD_BATCH_FILE(file_name varchar)
@@ -535,3 +541,4 @@ exception
         return :load_error_cons || ' (' || SQLCODE || '): ' || SQLERRM;
 end;
 $$;
+GRANT ALL PRIVILEGES ON PROCEDURE ECI_INGESTION_TOOLS.BATCH.SP_LOAD_BATCH_FILE(VARCHAR) TO ROLE {{ environment }}_LND_NA_DEVELOPER_FR;
