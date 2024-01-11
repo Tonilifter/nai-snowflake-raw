@@ -27,7 +27,7 @@ CREATE OR REPLACE FUNCTION ECI_INGESTION_TOOLS.UTILS.parse_field_type ( col stri
   ;
 
 -- Funcion para calcular los campos que conforman la PK de una tabla y devolverlos en un array
-create or replace function ECI_INGESTION_TOOLS.UTILS.get_table_pk_array(DDL string)
+create or replace function ECI_INGESTION_TOOLS.UTILS.get_table_pk_array (DDL string)
 returns array
 language javascript
 as
