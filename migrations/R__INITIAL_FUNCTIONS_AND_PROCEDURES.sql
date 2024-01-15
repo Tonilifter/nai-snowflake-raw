@@ -171,7 +171,7 @@ AS
 $$
 	DECLARE
 		information_table varchar := concat(:database, '.INFORMATION_SCHEMA.TABLES');
-    target_table_name_only varchar := replace(:target_table_name,:database||'.'||:schema||'.', ''); 
+        target_table_name_only varchar := replace(:target_table_name,:database||'.'||:schema||'.', ''); 
 		res resultset;
 		count_tables int := 0;
 
@@ -542,3 +542,37 @@ exception
 end;
 $$;
 GRANT ALL PRIVILEGES ON PROCEDURE ECI_INGESTION_TOOLS.BATCH.SP_LOAD_BATCH_FILE(VARCHAR) TO ROLE {{ environment }}_LND_NA_DEVELOPER_FR;
+
+
+CREATE OR REPLACE PROCEDURE ECI_INGESTION_TOOLS.STREAMING.UNLOAD_TABLE (
+	id int,
+	table_catalog VARCHAR,
+	table_schema VARCHAR,
+	table_name VARCHAR,
+	data_lake_path VARCHAR,
+	partition_field VARCHAR
+)
+RETURNS VARCHAR
+LANGUAGE SQL
+AS
+$$
+  DECLARE
+    query varchar;
+    table_name_join varchar := concat(:table_catalog,'.',:table_schema,'.',:table_name,'_STREAM');
+  BEGIN
+    query := concat('copy into @unload_storage_stage/',data_lake_path,' from (select * from ', table_name_join,')',' partition by (to_char(date(',partition_field,'),\'YYYY/MM/DD\')) file_format = (type = \'parquet\') header = true',';');
+    execute immediate query;
+
+    query := concat('UPDATE STAGING.PUBLIC.UNLOAD_CONFIG SET LAST_LOAD = current_date(), LAST_STATUS = \'SUCCESS\', TS_SNAPSHOT = current_timestamp()  WHERE ID = ', id);
+    execute immediate query;
+
+    RETURN 'SUCCESS';
+  EXCEPTION
+      WHEN OTHER THEN
+        query := concat('UPDATE STAGING.PUBLIC.UNLOAD_CONFIG SET LAST_LOAD = current_date(), LAST_STATUS = \'ERROR\', TS_SNAPSHOT = current_timestamp() WHERE ID = ', id);
+        execute immediate query;
+        RETURN 'ERROR';
+  END;
+$$
+;
+GRANT ALL PRIVILEGES ON PROCEDURE ECI_INGESTION_TOOLS.STREAMING.UNLOAD_TABLE(int,varchar,varchar,varchar,varchar,varchar) TO ROLE {{ environment }}_LND_NA_DEVELOPER_FR;
