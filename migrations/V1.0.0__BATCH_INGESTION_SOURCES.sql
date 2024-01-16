@@ -1,5 +1,5 @@
 -- Batch ingestion file's parametrization table
-create or replace table ECI_INGESTION_TOOLS.BATCH.TB_FILE_CONFIG (
+create or replace table DB_INGESTION_TOOLS_{{environment}}.BATCH.TB_FILE_CONFIG (
     ID_FILE number autoincrement start 1 increment 1 not null comment 'Unique identifier based on autoincrement',
     CO_TARGET_CATALOG varchar not null comment 'Target catalog in which the field will be loaded. It will also be part of the path for the file in stage',
     CO_TARGET_SCHEMA varchar not null comment 'Target schema in which the field will be loaded. It will also be part of the path for the file in stage',
@@ -11,7 +11,7 @@ create or replace table ECI_INGESTION_TOOLS.BATCH.TB_FILE_CONFIG (
     constraint _tables_config_pk primary key (ID_FILE)
 );
 
-create or replace table ECI_INGESTION_TOOLS.BATCH.TB_FIELDS_CONFIG (
+create or replace table DB_INGESTION_TOOLS_{{environment}}.BATCH.TB_FIELDS_CONFIG (
     ID_FILE number not null comment 'Unique identifier for the file/table of this field',
     DS_FIELD varchar not null comment 'Field that will be parsed in file and load into the file/table referenced in FILE_ID',
     CO_POSITION number not null comment 'Field position within the file/table',
@@ -21,11 +21,11 @@ create or replace table ECI_INGESTION_TOOLS.BATCH.TB_FIELDS_CONFIG (
     QT_LENGTH number default 0 comment 'Length of the field',
     QT_SCALE number default 0 comment 'Scale of the field',
     constraint _fields_config_pk primary key (ID_FILE, DS_FIELD),
-    constraint _file_config_fk foreign key (ID_FILE) references ECI_INGESTION_TOOLS.BATCH.TB_FILE_CONFIG(ID_FILE)
+    constraint _file_config_fk foreign key (ID_FILE) references DB_INGESTION_TOOLS_{{environment}}.BATCH.TB_FILE_CONFIG(ID_FILE)
 );
 
 -- Batch ingestion load history table
-create or replace table ECI_INGESTION_TOOLS.BATCH.TB_LOAD_HISTORY (
+create or replace table DB_INGESTION_TOOLS_{{environment}}.BATCH.TB_LOAD_HISTORY (
     CO_FILE_NAME varchar not null comment 'File loaded',
     DT_LOAD timestamp_ntz not null comment 'Timestamp in which the file has beend loaded',
     CO_STATUS varchar not null comment 'Result of the load attempt',

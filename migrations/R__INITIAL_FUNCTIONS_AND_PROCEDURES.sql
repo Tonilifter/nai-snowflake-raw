@@ -1,4 +1,8 @@
-CREATE OR REPLACE FUNCTION ECI_INGESTION_TOOLS.UTILS.parse_field_type ( col string , longitud int, decimales int)
+USE DATABASE DB_INGESTION_TOOLS_{{environment}};
+
+USE SCHEMA UTILS;
+
+CREATE OR REPLACE FUNCTION parse_field_type ( col string , longitud int, decimales int)
   RETURNS STRING
   AS
   $$
@@ -25,10 +29,9 @@ CREATE OR REPLACE FUNCTION ECI_INGESTION_TOOLS.UTILS.parse_field_type ( col stri
      end
   $$
   ;
-GRANT ALL PRIVILEGES ON FUNCTION ECI_INGESTION_TOOLS.UTILS.parse_field_type(string, int, int) TO ROLE {{ environment }}_LND_NA_DEVELOPER_FR;
 
 -- Funcion para calcular los campos que conforman la PK de una tabla y devolverlos en un array
-create or replace function ECI_INGESTION_TOOLS.UTILS.get_table_pk_array (DDL string)
+create or replace function get_table_pk_array (DDL string)
 returns array
 language javascript
 as
@@ -52,10 +55,11 @@ $$
     return [];
 $$
 ;
-GRANT ALL PRIVILEGES ON FUNCTION ECI_INGESTION_TOOLS.UTILS.get_table_pk_array(string) TO ROLE {{ environment }}_LND_NA_DEVELOPER_FR;
 
+
+USE SCHEMA STREAMING;
 -- Crea una vista aplanada de una tabla Kafka
-CREATE OR REPLACE PROCEDURE ECI_INGESTION_TOOLS.STREAMING.CREATE_KAFKA_FLATTEN_VIEW (
+CREATE OR REPLACE PROCEDURE CREATE_KAFKA_FLATTEN_VIEW (
   source_table_name VARCHAR, -- Nombre de la tabla Kafka, incluido base de datos y esquema
   view_name VARCHAR -- Nombre que recibirá la vista creada
 )
@@ -72,7 +76,7 @@ $$
             limit 1;
     
         create or replace temporary table fields as
-            select COLUMN_NAME, ECI_INGESTION_TOOLS.UTILS.parse_field_type(COLUMN_TYPE,PRECISION,SCALE) as COLUMN_TYPE
+            select COLUMN_NAME, DB_INGESTION_TOOLS_{{environment}}.UTILS.parse_field_type(COLUMN_TYPE,PRECISION,SCALE) as COLUMN_TYPE
             from (
                 select
                     replace(f.VALUE:name,'"','') as COLUMN_NAME,
@@ -104,11 +108,10 @@ $$
     END;
 $$
 ;
-GRANT ALL PRIVILEGES ON PROCEDURE ECI_INGESTION_TOOLS.STREAMING.CREATE_KAFKA_FLATTEN_VIEW(VARCHAR, VARCHAR) TO ROLE {{ environment }}_LND_NA_DEVELOPER_FR;
 
 
 -- Crea una vista a partir de una tabla Kafka con inyección de esquema
-CREATE OR REPLACE PROCEDURE ECI_INGESTION_TOOLS.STREAMING.CREATE_KAFKA_SCHEMA_VIEW (
+CREATE OR REPLACE PROCEDURE DB_INGESTION_TOOLS_{{environment}}.STREAMING.CREATE_KAFKA_SCHEMA_VIEW (
   source_table_name VARCHAR, -- Nombre de la tabla Kafka, incluido base de datos y esquema
   view_name VARCHAR -- Nombre que recibirá la vista creada
 )
@@ -130,10 +133,9 @@ $$
     END;
 $$
 ;
-GRANT ALL PRIVILEGES ON PROCEDURE ECI_INGESTION_TOOLS.STREAMING.CREATE_KAFKA_SCHEMA_VIEW(VARCHAR, VARCHAR) TO ROLE {{ environment }}_LND_NA_DEVELOPER_FR;
 
 -- Crea una vista de una tabla SNP Glue
-CREATE OR REPLACE PROCEDURE ECI_INGESTION_TOOLS.STREAMING.CREATE_GLUE_VIEW (
+CREATE OR REPLACE PROCEDURE DB_INGESTION_TOOLS_{{environment}}.STREAMING.CREATE_GLUE_VIEW (
   source_table_name VARCHAR, -- Nombre de la tabla SNP Glue, incluido base de datos y esquema
   view_name VARCHAR -- Nombre que recibirá la vista creada
 )
@@ -143,7 +145,7 @@ AS
 $$
     BEGIN     
         let create_view_sql := concat('create view if not exists ',view_name,' as select *, ');
-        create_view_sql := concat(create_view_sql,' ECI_INGESTION_TOOLS.UTILS.get_table_pk_array(get_ddl(\'table\',\'',source_table_name,'\')) as PRIMARY_KEY_COLUMNS ');
+        create_view_sql := concat(create_view_sql,' DB_INGESTION_TOOLS_{{environment}}.UTILS.get_table_pk_array(get_ddl(\'table\',\'',source_table_name,'\')) as PRIMARY_KEY_COLUMNS ');
         create_view_sql := concat(create_view_sql,' FROM ',source_table_name,';');
     
         execute immediate create_view_sql;
@@ -152,11 +154,10 @@ $$
     END;
 $$
 ;
-GRANT ALL PRIVILEGES ON PROCEDURE ECI_INGESTION_TOOLS.STREAMING.CREATE_GLUE_VIEW(VARCHAR, VARCHAR) TO ROLE {{ environment }}_LND_NA_DEVELOPER_FR;
 
 
 -- Procedimiento para consolidación de tablas streaming
-CREATE OR REPLACE PROCEDURE ECI_INGESTION_TOOLS.STREAMING.CONSOLIDATE_TABLE_MERGE (
+CREATE OR REPLACE PROCEDURE DB_INGESTION_TOOLS_{{environment}}.STREAMING.CONSOLIDATE_TABLE_MERGE (
 	database VARCHAR, -- Base de datos sobre la que trabajamos
     schema VARCHAR, -- Esquema sobre el que trabajamos
     source_view_name VARCHAR, -- Nombre de la vista aplanada de la tabla Kafka o SNP Glue (incluido base de datos y esquema)
@@ -266,11 +267,10 @@ $$
 	END;
 $$
 ;
-GRANT ALL PRIVILEGES ON PROCEDURE ECI_INGESTION_TOOLS.STREAMING.CONSOLIDATE_TABLE_MERGE(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR) TO ROLE {{ environment }}_LND_NA_DEVELOPER_FR;
 
 
 -- Procedimiento que comprueba si existen nuevas tablas procedentes de una fuente Streaming
-CREATE OR REPLACE PROCEDURE ECI_INGESTION_TOOLS.STREAMING.CHECK_NEW_STREAMING_TABLE (
+CREATE OR REPLACE PROCEDURE DB_INGESTION_TOOLS_{{environment}}.STREAMING.CHECK_NEW_STREAMING_TABLE (
     origin_database VARCHAR, -- Base de datos Origen donde buscar nuevas tablas
     origin_schema VARCHAR, -- Esquema Origen donde buscar nuevas tablas
 	table_prefix VARCHAR, -- Prefijo de las tablas a buscar
@@ -300,14 +300,14 @@ $$
             -- Creamos la vista aplanada de la tabla original
             IF (is_schema_infered) THEN
                 IF (is_glue) THEN
-                    res := concat('call ECI_INGESTION_TOOLS.STREAMING.CREATE_GLUE_VIEW(\'',completed_table_name,'\',\'',completed_view_name,'\');');
+                    res := concat('call DB_INGESTION_TOOLS_{{environment}}.STREAMING.CREATE_GLUE_VIEW(\'',completed_table_name,'\',\'',completed_view_name,'\');');
                     execute immediate :res;
                 ELSE
-                    res := concat('call ECI_INGESTION_TOOLS.STREAMING.CREATE_KAFKA_SCHEMA_VIEW(\'',completed_table_name,'\',\'',completed_view_name,'\');');
+                    res := concat('call DB_INGESTION_TOOLS_{{environment}}.STREAMING.CREATE_KAFKA_SCHEMA_VIEW(\'',completed_table_name,'\',\'',completed_view_name,'\');');
                     execute immediate :res;
                 END IF;
             ELSE
-                res := concat('call ECI_INGESTION_TOOLS.STREAMING.CREATE_KAFKA_FLATTEN_VIEW(\'',completed_table_name,'\',\'',completed_view_name,'\');');
+                res := concat('call DB_INGESTION_TOOLS_{{environment}}.STREAMING.CREATE_KAFKA_FLATTEN_VIEW(\'',completed_table_name,'\',\'',completed_view_name,'\');');
                 execute immediate :res;
             END IF;
 
@@ -321,7 +321,7 @@ $$
 
             -- Creamos el task que ejecutará la consolidación.
             let create_task_sentence := concat('CREATE OR REPLACE TASK ',completed_table_name,'_CONSOLIDATION_TASK WAREHOUSE = SNW_CORP_ACCENTURE_BIG SCHEDULE = \'5 MINUTES\' AS ');
-            create_task_sentence := concat(create_task_sentence,'call ECI_INGESTION_TOOLS.STREAMING.CONSOLIDATE_TABLE_MERGE(');
+            create_task_sentence := concat(create_task_sentence,'call DB_INGESTION_TOOLS_{{environment}}.STREAMING.CONSOLIDATE_TABLE_MERGE(');
             create_task_sentence := concat(create_task_sentence, '\'', new_table.TABLE_CATALOG,'\',');
             create_task_sentence := concat(create_task_sentence, '\'', new_table.TABLE_SCHEMA,'\',');
             create_task_sentence := concat(create_task_sentence, '\'', completed_view_name,'\',');
@@ -345,10 +345,9 @@ $$
     END;
 $$
 ;
-GRANT ALL PRIVILEGES ON PROCEDURE ECI_INGESTION_TOOLS.STREAMING.CHECK_NEW_STREAMING_TABLE(VARCHAR, VARCHAR, VARCHAR, VARCHAR, BOOLEAN, BOOLEAN) TO ROLE {{ environment }}_LND_NA_DEVELOPER_FR;
 
 
-create or replace procedure ECI_INGESTION_TOOLS.BATCH.SP_GET_ADL_PATH (file_name varchar)
+create or replace procedure DB_INGESTION_TOOLS_{{environment}}.BATCH.SP_GET_ADL_PATH (file_name varchar)
 returns varchar
 language SQL
 execute as owner
@@ -362,7 +361,7 @@ begin
 
     external_path := (
         select distinct concat(upper(CO_ADL_PATH), to_char(current_date(),'YYYY/MM/DD'), '/')
-        from ECI_INGESTION_TOOLS.BATCH.TB_FILE_CONFIG
+        from DB_INGESTION_TOOLS_{{environment}}.BATCH.TB_FILE_CONFIG
         where :file_name regexp TX_FILE_REGEX
     );
     return external_path;
@@ -373,17 +372,16 @@ exception
         
 end;
 $$;
-GRANT ALL PRIVILEGES ON PROCEDURE ECI_INGESTION_TOOLS.BATCH.SP_GET_ADL_PATH(VARCHAR) TO ROLE {{ environment }}_LND_NA_DEVELOPER_FR;
 
 
-create or replace procedure ECI_INGESTION_TOOLS.BATCH.SP_LOAD_BATCH_FILE(file_name varchar)
+create or replace procedure DB_INGESTION_TOOLS_{{environment}}.BATCH.SP_LOAD_BATCH_FILE(file_name varchar)
 returns varchar
 language SQL
 execute as caller
 as
 $$
 declare
-    tmp_file_format_cons varchar := 'ECI_INGESTION_TOOLS.BATCH.FF_BATCH';
+    tmp_file_format_cons varchar := 'DB_INGESTION_TOOLS_{{environment}}.BATCH.FF_BATCH';
     load_success_cons varchar := 'Success';
     load_error_cons varchar := 'Error';
     
@@ -405,7 +403,7 @@ begin
     -- Information about the target file
     let file_config_rs resultset := (
         select ID_FILE, upper(CO_TARGET_CATALOG), upper(CO_TARGET_SCHEMA), upper(CO_TARGET_TABLE), FL_HAS_HEADER, TX_FILE_SSEPARATOR
-        from ECI_INGESTION_TOOLS.BATCH.TB_FILE_CONFIG
+        from DB_INGESTION_TOOLS_{{environment}}.BATCH.TB_FILE_CONFIG
         where :file_name regexp TX_FILE_REGEX
     );
     let file_config_c cursor for file_config_rs;
@@ -419,7 +417,7 @@ begin
     -- Information about the target table fields
     let fields_config_rs resultset := (
         select concat('"', upper(DS_FIELD), '"') as DS_FIELD, CO_POSITION, CO_FIRST_CHARACTER, FL_IS_PK, CO_TYPE, QT_LENGTH, QT_SCALE
-        from ECI_INGESTION_TOOLS.BATCH.TB_FIELDS_CONFIG
+        from DB_INGESTION_TOOLS_{{environment}}.BATCH.TB_FIELDS_CONFIG
         where ID_FILE = :target_id
         order by CO_POSITION
     );
@@ -515,9 +513,9 @@ begin
     execute immediate :copy_into_sql;
     
     -- Update the batch load history table
-    insert into ECI_INGESTION_TOOLS.BATCH.TB_LOAD_HISTORY
+    insert into DB_INGESTION_TOOLS_{{environment}}.BATCH.TB_LOAD_HISTORY
     select FILE_NAME, :batch_load_ts, :load_success_cons, ROW_COUNT, ROW_PARSED, :target_catalog, SCHEMA_NAME, TABLE_NAME
-    from ECI_INGESTION_TOOLS.INFORMATION_SCHEMA.LOAD_HISTORY
+    from DB_INGESTION_TOOLS_{{environment}}.INFORMATION_SCHEMA.LOAD_HISTORY
     where FILE_NAME like ('%' || :file_name)
         and LAST_LOAD_TIME > dateadd(days, -1, current_date())
         and TABLE_NAME = :target_table
@@ -529,9 +527,9 @@ exception
     when other then
 
         -- Update the batch load history table
-        insert into ECI_INGESTION_TOOLS.BATCH.TB_LOAD_HISTORY (CO_FILE_NAME, DT_LOAD, CO_STATUS, CO_TARGET_CATALOG, CO_TARGET_SCHEMA, CO_TARGET_TABLE)
+        insert into DB_INGESTION_TOOLS_{{environment}}.BATCH.TB_LOAD_HISTORY (CO_FILE_NAME, DT_LOAD, CO_STATUS, CO_TARGET_CATALOG, CO_TARGET_SCHEMA, CO_TARGET_TABLE)
         select FILE_NAME, :batch_load_ts, :load_error_cons, :target_catalog, SCHEMA_NAME, TABLE_NAME
-        from ECI_INGESTION_TOOLS.INFORMATION_SCHEMA.LOAD_HISTORY
+        from DB_INGESTION_TOOLS_{{environment}}.INFORMATION_SCHEMA.LOAD_HISTORY
         where FILE_NAME like ('%' || :file_name)
             and LAST_LOAD_TIME > dateadd(days, -1, current_date())
             and TABLE_NAME = :target_table
@@ -541,10 +539,9 @@ exception
         return :load_error_cons || ' (' || SQLCODE || '): ' || SQLERRM;
 end;
 $$;
-GRANT ALL PRIVILEGES ON PROCEDURE ECI_INGESTION_TOOLS.BATCH.SP_LOAD_BATCH_FILE(VARCHAR) TO ROLE {{ environment }}_LND_NA_DEVELOPER_FR;
 
 
-CREATE OR REPLACE PROCEDURE ECI_INGESTION_TOOLS.STREAMING.UNLOAD_TABLE (
+CREATE OR REPLACE PROCEDURE DB_INGESTION_TOOLS_{{environment}}.STREAMING.UNLOAD_TABLE (
 	id int,
 	table_catalog VARCHAR,
 	table_schema VARCHAR,
@@ -575,4 +572,3 @@ $$
   END;
 $$
 ;
-GRANT ALL PRIVILEGES ON PROCEDURE ECI_INGESTION_TOOLS.STREAMING.UNLOAD_TABLE(int,varchar,varchar,varchar,varchar,varchar) TO ROLE {{ environment }}_LND_NA_DEVELOPER_FR;
