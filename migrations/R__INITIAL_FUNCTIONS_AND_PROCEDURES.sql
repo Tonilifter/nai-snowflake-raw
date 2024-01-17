@@ -392,7 +392,7 @@ $$
         let create_task_sentence := concat('CREATE OR REPLACE TASK ',completed_table_name,'_CONSOLIDATION_TASK WAREHOUSE = {{warehouse}} SCHEDULE = \'5 MINUTES\' AS ');
         create_task_sentence := concat(create_task_sentence,'call DB_INGESTION_TOOLS_{{environment}}.STREAMING.CONSOLIDATE_TABLE_MERGE(');
         create_task_sentence := concat(create_task_sentence, '\'', origin_database,'\',');
-        create_task_sentence := concat(create_task_sentence, '\'', origin_schemaA,'\',');
+        create_task_sentence := concat(create_task_sentence, '\'', origin_schema,'\',');
         create_task_sentence := concat(create_task_sentence, '\'', completed_view_name,'\',');
         create_task_sentence := concat(create_task_sentence, '\'', completed_view_name,'_STREAM\',');
         create_task_sentence := concat(create_task_sentence, '\'', completed_table_name, consolidated_table_suffix,'\',');
