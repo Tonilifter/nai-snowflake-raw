@@ -320,7 +320,7 @@ $$
             execute immediate create_stream_table_sentence;
 
             -- Creamos el task que ejecutará la consolidación.
-            let create_task_sentence := concat('CREATE OR REPLACE TASK ',completed_table_name,'_CONSOLIDATION_TASK WAREHOUSE = SNW_CORP_ACCENTURE_BIG SCHEDULE = \'5 MINUTES\' AS ');
+            let create_task_sentence := concat('CREATE OR REPLACE TASK ',completed_table_name,'_CONSOLIDATION_TASK WAREHOUSE = {{warehouse}} SCHEDULE = \'5 MINUTES\' AS ');
             create_task_sentence := concat(create_task_sentence,'call DB_INGESTION_TOOLS_{{environment}}.STREAMING.CONSOLIDATE_TABLE_MERGE(');
             create_task_sentence := concat(create_task_sentence, '\'', new_table.TABLE_CATALOG,'\',');
             create_task_sentence := concat(create_task_sentence, '\'', new_table.TABLE_SCHEMA,'\',');
@@ -341,6 +341,73 @@ $$
             
         END FOR;
         CLOSE tables_cursor;
+        RETURN 'SUCCESS';
+    END;
+$$
+;
+
+-- Procedimiento que crea todas las estructuras necesarias para trabajar con una tabla Streaming nueva
+CREATE OR REPLACE PROCEDURE DB_INGESTION_TOOLS_{{environment}}.STREAMING.CREATE_STREAMING_TABLE_COMPONENTS (
+    origin_database VARCHAR, -- Base de datos Origen 
+    origin_schema VARCHAR, -- Esquema Origen 
+	table_name VARCHAR, -- Nombre de la tabla
+  	consolidated_table_suffix VARCHAR, -- Sufijo de las tablas consolidadas
+    is_schema_infered BOOLEAN, --- Indica si la tabla se ha generado con inferencia de esquema o no. Para SNP Glue el valor siempre será TRUE
+    is_glue BOOLEAN --- Indica si la tabla proviene de SNP Glue o no. (true/false)
+)
+RETURNS VARCHAR
+LANGUAGE SQL
+AS
+$$
+    DECLARE
+        res varchar := '';
+    BEGIN
+        -- Construimos el nombre de la tabla y la vista
+        let completed_table_name := concat(origin_database,'.',origin_schema,'.',table_name);
+        let completed_view_name := concat(origin_database,'.',origin_schema,'.',table_name,'_VW');
+
+        -- Creamos la vista aplanada de la tabla original
+        IF (is_schema_infered) THEN
+            IF (is_glue) THEN
+                res := concat('call DB_INGESTION_TOOLS_{{environment}}.STREAMING.CREATE_GLUE_VIEW(\'',completed_table_name,'\',\'',completed_view_name,'\');');
+                execute immediate :res;
+            ELSE
+                res := concat('call DB_INGESTION_TOOLS_{{environment}}.STREAMING.CREATE_KAFKA_SCHEMA_VIEW(\'',completed_table_name,'\',\'',completed_view_name,'\');');
+                execute immediate :res;
+            END IF;
+        ELSE
+            res := concat('call DB_INGESTION_TOOLS_{{environment}}.STREAMING.CREATE_KAFKA_FLATTEN_VIEW(\'',completed_table_name,'\',\'',completed_view_name,'\');');
+            execute immediate :res;
+        END IF;
+
+        -- Creamos el Stream sobre la vista recien creada
+        let create_stream_view_sentence := concat('CREATE OR REPLACE STREAM ',completed_view_name,'_STREAM ON VIEW ',completed_view_name,' APPEND_ONLY = TRUE SHOW_INITIAL_ROWS = TRUE;');
+        execute immediate create_stream_view_sentence;
+
+        -- Creamos el Stream sobre la tabla recien creada
+        let create_stream_table_sentence := concat('CREATE OR REPLACE STREAM ',completed_table_name,'_STREAM ON TABLE ',completed_table_name,' APPEND_ONLY = TRUE SHOW_INITIAL_ROWS = TRUE;');
+        execute immediate create_stream_table_sentence;
+
+        -- Creamos el task que ejecutará la consolidación.
+        let create_task_sentence := concat('CREATE OR REPLACE TASK ',completed_table_name,'_CONSOLIDATION_TASK WAREHOUSE = {{warehouse}} SCHEDULE = \'5 MINUTES\' AS ');
+        create_task_sentence := concat(create_task_sentence,'call DB_INGESTION_TOOLS_{{environment}}.STREAMING.CONSOLIDATE_TABLE_MERGE(');
+        create_task_sentence := concat(create_task_sentence, '\'', new_table.TABLE_CATALOG,'\',');
+        create_task_sentence := concat(create_task_sentence, '\'', new_table.TABLE_SCHEMA,'\',');
+        create_task_sentence := concat(create_task_sentence, '\'', completed_view_name,'\',');
+        create_task_sentence := concat(create_task_sentence, '\'', completed_view_name,'_STREAM\',');
+        create_task_sentence := concat(create_task_sentence, '\'', completed_table_name, consolidated_table_suffix,'\',');
+        create_task_sentence := concat(create_task_sentence, '\'PRIMARY_KEY_COLUMNS\',');
+        IF (is_glue) THEN
+            create_task_sentence := concat(create_task_sentence, '\'GLCHANGETIME\'');
+        ELSE
+            create_task_sentence := concat(create_task_sentence, '\'OFFSET\'');
+        END IF;
+        create_task_sentence := concat(create_task_sentence, ');');
+        execute immediate create_task_sentence;
+        -- Ejecutamos el nuevo task
+        let resume_task_sentence := concat('ALTER TASK ',completed_table_name,'_CONSOLIDATION_TASK RESUME;');
+        execute immediate resume_task_sentence;
+        
         RETURN 'SUCCESS';
     END;
 $$
