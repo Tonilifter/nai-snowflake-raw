@@ -105,6 +105,9 @@ $$
     
         execute immediate create_view_sql;
 
+        let setViewTraking := concat('ALTER view ',view_name,' SET CHANGE_TRACKING = TRUE;');
+        execute immediate setViewTraking;
+
         RETURN create_view_sql;
     END;
 $$
@@ -131,6 +134,9 @@ $$
     
         execute immediate create_view_sql;
 
+        let setViewTraking := concat('ALTER view ',view_name,' SET CHANGE_TRACKING = TRUE;');
+        execute immediate setViewTraking;
+
         RETURN create_view_sql;
     END;
 $$
@@ -152,6 +158,9 @@ $$
         create_view_sql := concat(create_view_sql,' FROM ',source_table_name,';');
     
         execute immediate create_view_sql;
+
+        let setViewTraking := concat('ALTER view ',view_name,' SET CHANGE_TRACKING = TRUE;');
+        execute immediate setViewTraking;
 
         RETURN create_view_sql;
     END;
