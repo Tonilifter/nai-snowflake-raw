@@ -303,8 +303,8 @@ $$
         res varchar := '';
     BEGIN
         -- Lanzamos consulta sobre la vista para extraer todas las tablas de Kafka
-        LET tables_cursor CURSOR FOR SELECT * FROM identifier(?) I1 WHERE TABLE_CATALOG = ? and TABLE_SCHEMA = ? and TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME NOT LIKE ? AND TABLE_NAME LIKE ? AND NOT EXISTS (SELECT 1 FROM STAGING.INFORMATION_SCHEMA.TABLES I2 where TABLE_NAME = concat(I1.TABLE_NAME,?));
-        OPEN tables_cursor using(information_table, origin_database, origin_schema, table_name_not_like, table_name_like, consolidated_table_suffix);
+        LET tables_cursor CURSOR FOR SELECT * FROM identifier(?) I1 WHERE TABLE_CATALOG = ? and TABLE_SCHEMA = ? and TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME NOT LIKE ? AND TABLE_NAME LIKE ? AND NOT EXISTS (SELECT 1 FROM identifier(?) I2 where I2.TABLE_NAME = concat(I1.TABLE_NAME,?));
+        OPEN tables_cursor using(information_table, origin_database, origin_schema, table_name_not_like, table_name_like, information_table, consolidated_table_suffix);
         -- Recorremos todas las tablas Kafka
         FOR new_table IN tables_cursor DO
             -- Construimos el nombre de la tabla y la vista
@@ -643,13 +643,13 @@ $$
     query := concat('copy into @unload_storage_stage/',data_lake_path,' from (select * from ', table_name_join,')',' partition by (to_char(date(',partition_field,'),\'YYYY/MM/DD\')) file_format = (type = \'parquet\') header = true',';');
     execute immediate query;
 
-    query := concat('UPDATE STAGING.PUBLIC.UNLOAD_CONFIG SET LAST_LOAD = current_date(), LAST_STATUS = \'SUCCESS\', TS_SNAPSHOT = current_timestamp()  WHERE ID = ', id);
+    query := concat('UPDATE DB_INGESTION_TOOLS_{{environment}}.STREAMING.UNLOAD_CONFIG SET LAST_LOAD = current_date(), LAST_STATUS = \'SUCCESS\', TS_SNAPSHOT = current_timestamp()  WHERE ID = ', id);
     execute immediate query;
 
     RETURN 'SUCCESS';
   EXCEPTION
       WHEN OTHER THEN
-        query := concat('UPDATE STAGING.PUBLIC.UNLOAD_CONFIG SET LAST_LOAD = current_date(), LAST_STATUS = \'ERROR\', TS_SNAPSHOT = current_timestamp() WHERE ID = ', id);
+        query := concat('UPDATE DB_INGESTION_TOOLS_{{environment}}.STREAMING.UNLOAD_CONFIG SET LAST_LOAD = current_date(), LAST_STATUS = \'ERROR\', TS_SNAPSHOT = current_timestamp() WHERE ID = ', id);
         execute immediate query;
         RETURN 'ERROR';
   END;
