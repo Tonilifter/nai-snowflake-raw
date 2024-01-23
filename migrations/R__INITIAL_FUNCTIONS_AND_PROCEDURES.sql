@@ -2,15 +2,15 @@ USE DATABASE DB_INGESTION_TOOLS_{{environment}};
 
 USE SCHEMA UTILS;
 
-CREATE OR REPLACE FUNCTION parse_field_type ( col string , longitud int, decimales int)
+CREATE OR REPLACE FUNCTION parse_field_type ( col string , longitud int, precision int, decimales int)
   RETURNS STRING
   AS
   $$
       select
       case col
-        when 'VARCHAR' then 'STRING'
-        when 'VARCHAR2' then 'STRING'
-        when 'CHARACTER' then 'STRING'
+        when 'VARCHAR' then iff(longitud is null,'STRING', concat('VARCHAR(',longitud,')'))
+        when 'VARCHAR2' then iff(longitud is null,'STRING', concat('VARCHAR(',longitud,')'))
+        when 'CHARACTER' then iff(longitud is null,'STRING', concat('VARCHAR(',longitud,')'))
         when 'TIMESTAMP' then 'TIMESTAMP_NTZ'
         when 'TIMESTAMP(6' then 'TIMESTAMP_NTZ'
         when 'BLOB' then 'BINARY'
@@ -21,8 +21,8 @@ CREATE OR REPLACE FUNCTION parse_field_type ( col string , longitud int, decimal
         when 'REAL' then 'FLOAT'
         when 'DATE' then 'DATE'
         when 'DOUBLE' then 'FLOAT'
-        when 'DECIMAL' then concat('DECIMAL(',longitud,',',iff(decimales is null,0,decimales),')')
-        when 'NUMBER' then concat('DECIMAL(',longitud,',',iff(decimales is null,0,decimales),')')
+        when 'DECIMAL' then concat('DECIMAL(',precision,',',iff(decimales is null,0,decimales),')')
+        when 'NUMBER' then concat('DECIMAL(',precision,',',iff(decimales is null,0,decimales),')')
         when 'XML' then 'VARIANT'
         when 'TIME' then 'TIME'
         else COL
@@ -77,7 +77,7 @@ $$
             limit 1;
     
         create or replace temporary table fields as
-            select COLUMN_NAME, DB_INGESTION_TOOLS_{{environment}}.UTILS.parse_field_type(COLUMN_TYPE,PRECISION,SCALE) as COLUMN_TYPE
+            select COLUMN_NAME, DB_INGESTION_TOOLS_{{environment}}.UTILS.parse_field_type(COLUMN_TYPE,COLUMN_SIZE,PRECISION,SCALE) as COLUMN_TYPE
             from (
                 select
                     replace(f.VALUE:name,'"','') as COLUMN_NAME,
@@ -98,7 +98,7 @@ $$
         let fields_cursor CURSOR FOR SELECT * FROM fields;
         OPEN fields_cursor;
         FOR field IN fields_cursor DO
-            create_view_sql := concat(create_view_sql,'IFF(RECORD_CONTENT:A_ENTTYP <> \'DL\',TRIM(RECORD_CONTENT:afterImage:',field.COLUMN_NAME,'::',field.COLUMN_TYPE,'),TRIM(RECORD_CONTENT:beforeImage:',field.COLUMN_NAME,'::',field.COLUMN_TYPE,')) as ', field.COLUMN_NAME, ',');
+            create_view_sql := concat(create_view_sql,'IFF(RECORD_CONTENT:A_ENTTYP <> \'DL\',TRIM(RECORD_CONTENT:afterImage:',field.COLUMN_NAME,')::',field.COLUMN_TYPE,',TRIM(RECORD_CONTENT:beforeImage:',field.COLUMN_NAME,')::',field.COLUMN_TYPE,') as ', field.COLUMN_NAME, ',');
         END FOR;
         create_view_sql := concat(create_view_sql,'ARRAY_SORT(Object_keys(RECORD_METADATA:key)) as PRIMARY_KEY_COLUMNS ');
         create_view_sql := concat(create_view_sql,'FROM ',source_table_name,';');
