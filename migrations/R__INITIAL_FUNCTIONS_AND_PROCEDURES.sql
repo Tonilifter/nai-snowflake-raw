@@ -301,6 +301,8 @@ $$
         table_name_like varchar := concat(:table_prefix,'%');
         table_name_not_like varchar := concat('%',:consolidated_table_suffix);
         res varchar := '';
+        count_rows int := 0;
+        is_schema_present_in_metadata boolean := FALSE;
     BEGIN
         -- Lanzamos consulta sobre la vista para extraer todas las tablas de Kafka
         LET tables_cursor CURSOR FOR SELECT * FROM identifier(?) I1 WHERE TABLE_CATALOG = ? and TABLE_SCHEMA = ? and TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME NOT LIKE ? AND TABLE_NAME LIKE ? AND NOT EXISTS (SELECT 1 FROM identifier(?) I2 where I2.TABLE_NAME = concat(I1.TABLE_NAME,?));
@@ -310,49 +312,59 @@ $$
             -- Construimos el nombre de la tabla y la vista
             let completed_table_name := concat(new_table.TABLE_CATALOG,'.',new_table.TABLE_SCHEMA,'.',new_table.TABLE_NAME);
             let completed_view_name := concat(new_table.TABLE_CATALOG,'.',new_table.TABLE_SCHEMA,'.',new_table.TABLE_NAME,'_VW');
-
-            -- Creamos la vista aplanada de la tabla original
-            IF (is_schema_infered) THEN
-                IF (is_glue) THEN
-                    res := concat('call DB_INGESTION_TOOLS_{{environment}}.STREAMING.CREATE_GLUE_VIEW(\'',completed_table_name,'\',\'',completed_view_name,'\');');
-                    execute immediate :res;
+            -- Chequeamos que la tabla no esté vacia. Si está vacía no hacemos nada
+            SELECT count(*) INTO :count_rows FROM identifier(:completed_table_name);
+		    IF (count_rows > 0) THEN
+                -- Creamos la vista aplanada de la tabla original
+                IF (is_schema_infered) THEN
+                    is_schema_present_in_metadata := TRUE;
+                    IF (is_glue) THEN
+                        res := concat('call DB_INGESTION_TOOLS_{{environment}}.STREAMING.CREATE_GLUE_VIEW(\'',completed_table_name,'\',\'',completed_view_name,'\');');
+                        execute immediate :res;
+                    ELSE
+                        res := concat('call DB_INGESTION_TOOLS_{{environment}}.STREAMING.CREATE_KAFKA_SCHEMA_VIEW(\'',completed_table_name,'\',\'',completed_view_name,'\');');
+                        execute immediate :res;
+                    END IF;
                 ELSE
-                    res := concat('call DB_INGESTION_TOOLS_{{environment}}.STREAMING.CREATE_KAFKA_SCHEMA_VIEW(\'',completed_table_name,'\',\'',completed_view_name,'\');');
-                    execute immediate :res;
+                    -- Chequeamos que la tabla Kafka venga con el esquema definido en los metadatos
+                    select iff(RECORD_METADATA:headers.ValueRecordSchema is null, FALSE, TRUE) into :is_schema_present_in_metadata from identifier(:completed_table_name) where RECORD_METADATA:headers.A_ENTTYP <> 'DL' limit 1;
+                    -- Si la tabla KAFKA viene sin esquema, no hacemos nada
+                    IF (is_schema_present_in_metadata) THEN
+                        res := concat('call DB_INGESTION_TOOLS_{{environment}}.STREAMING.CREATE_KAFKA_FLATTEN_VIEW(\'',completed_table_name,'\',\'',completed_view_name,'\');');
+                        execute immediate :res;
+                    END IF;
                 END IF;
-            ELSE
-                res := concat('call DB_INGESTION_TOOLS_{{environment}}.STREAMING.CREATE_KAFKA_FLATTEN_VIEW(\'',completed_table_name,'\',\'',completed_view_name,'\');');
-                execute immediate :res;
+                -- Si la tabla KAFKA viene sin esquema, no hacemos nada
+                IF (is_schema_present_in_metadata) THEN
+                    -- Creamos el Stream sobre la vista recien creada
+                    let create_stream_view_sentence := concat('CREATE OR REPLACE STREAM ',completed_view_name,'_STREAM ON VIEW ',completed_view_name,' APPEND_ONLY = TRUE SHOW_INITIAL_ROWS = TRUE;');
+                    execute immediate create_stream_view_sentence;
+
+                    -- Creamos el Stream sobre la tabla recien creada
+                    let create_stream_table_sentence := concat('CREATE OR REPLACE STREAM ',completed_table_name,'_STREAM ON TABLE ',completed_table_name,' APPEND_ONLY = TRUE SHOW_INITIAL_ROWS = TRUE;');
+                    execute immediate create_stream_table_sentence;
+
+                    -- Creamos el task que ejecutará la consolidación.
+                    let create_task_sentence := concat('CREATE OR REPLACE TASK ',completed_table_name,'_CONSOLIDATION_TASK WAREHOUSE = {{warehouse}} SCHEDULE = \'5 MINUTES\' AS ');
+                    create_task_sentence := concat(create_task_sentence,'call DB_INGESTION_TOOLS_{{environment}}.STREAMING.CONSOLIDATE_TABLE_MERGE(');
+                    create_task_sentence := concat(create_task_sentence, '\'', new_table.TABLE_CATALOG,'\',');
+                    create_task_sentence := concat(create_task_sentence, '\'', new_table.TABLE_SCHEMA,'\',');
+                    create_task_sentence := concat(create_task_sentence, '\'', completed_view_name,'\',');
+                    create_task_sentence := concat(create_task_sentence, '\'', completed_view_name,'_STREAM\',');
+                    create_task_sentence := concat(create_task_sentence, '\'', completed_table_name, consolidated_table_suffix,'\',');
+                    create_task_sentence := concat(create_task_sentence, '\'PRIMARY_KEY_COLUMNS\',');
+                    IF (is_glue) THEN
+                        create_task_sentence := concat(create_task_sentence, '\'GLCHANGETIME\'');
+                    ELSE
+                        create_task_sentence := concat(create_task_sentence, '\'OFFSET\'');
+                    END IF;
+                    create_task_sentence := concat(create_task_sentence, ');');
+                    execute immediate create_task_sentence;
+                    -- Ejecutamos el nuevo task
+                    let resume_task_sentence := concat('ALTER TASK ',completed_table_name,'_CONSOLIDATION_TASK RESUME;');
+                    execute immediate resume_task_sentence;
+                END IF;
             END IF;
-
-            -- Creamos el Stream sobre la vista recien creada
-            let create_stream_view_sentence := concat('CREATE OR REPLACE STREAM ',completed_view_name,'_STREAM ON VIEW ',completed_view_name,' APPEND_ONLY = TRUE SHOW_INITIAL_ROWS = TRUE;');
-            execute immediate create_stream_view_sentence;
-
-            -- Creamos el Stream sobre la tabla recien creada
-            let create_stream_table_sentence := concat('CREATE OR REPLACE STREAM ',completed_table_name,'_STREAM ON TABLE ',completed_table_name,' APPEND_ONLY = TRUE SHOW_INITIAL_ROWS = TRUE;');
-            execute immediate create_stream_table_sentence;
-
-            -- Creamos el task que ejecutará la consolidación.
-            let create_task_sentence := concat('CREATE OR REPLACE TASK ',completed_table_name,'_CONSOLIDATION_TASK WAREHOUSE = {{warehouse}} SCHEDULE = \'5 MINUTES\' AS ');
-            create_task_sentence := concat(create_task_sentence,'call DB_INGESTION_TOOLS_{{environment}}.STREAMING.CONSOLIDATE_TABLE_MERGE(');
-            create_task_sentence := concat(create_task_sentence, '\'', new_table.TABLE_CATALOG,'\',');
-            create_task_sentence := concat(create_task_sentence, '\'', new_table.TABLE_SCHEMA,'\',');
-            create_task_sentence := concat(create_task_sentence, '\'', completed_view_name,'\',');
-            create_task_sentence := concat(create_task_sentence, '\'', completed_view_name,'_STREAM\',');
-            create_task_sentence := concat(create_task_sentence, '\'', completed_table_name, consolidated_table_suffix,'\',');
-            create_task_sentence := concat(create_task_sentence, '\'PRIMARY_KEY_COLUMNS\',');
-            IF (is_glue) THEN
-                create_task_sentence := concat(create_task_sentence, '\'GLCHANGETIME\'');
-            ELSE
-                create_task_sentence := concat(create_task_sentence, '\'OFFSET\'');
-            END IF;
-            create_task_sentence := concat(create_task_sentence, ');');
-            execute immediate create_task_sentence;
-            -- Ejecutamos el nuevo task
-            let resume_task_sentence := concat('ALTER TASK ',completed_table_name,'_CONSOLIDATION_TASK RESUME;');
-            execute immediate resume_task_sentence;
-            
         END FOR;
         CLOSE tables_cursor;
         RETURN 'SUCCESS';
@@ -376,53 +388,65 @@ AS
 $$
     DECLARE
         res varchar := '';
+        count_rows int := 0;
+        is_schema_present_in_metadata boolean := FALSE;
     BEGIN
         -- Construimos el nombre de la tabla y la vista
         let completed_table_name := concat(origin_database,'.',origin_schema,'.',table_name);
         let completed_view_name := concat(origin_database,'.',origin_schema,'.',table_name,'_VW');
-
-        -- Creamos la vista aplanada de la tabla original
-        IF (is_schema_infered) THEN
-            IF (is_glue) THEN
-                res := concat('call DB_INGESTION_TOOLS_{{environment}}.STREAMING.CREATE_GLUE_VIEW(\'',completed_table_name,'\',\'',completed_view_name,'\');');
-                execute immediate :res;
+        -- Chequeamos que la tabla no esté vacia. Si está vacía no hacemos nada
+        SELECT count(*) INTO :count_rows FROM identifier(:completed_table_name);
+        IF (count_rows > 0) THEN
+            -- Creamos la vista aplanada de la tabla original
+            IF (is_schema_infered) THEN
+                is_schema_present_in_metadata := TRUE;
+                IF (is_glue) THEN
+                    res := concat('call DB_INGESTION_TOOLS_{{environment}}.STREAMING.CREATE_GLUE_VIEW(\'',completed_table_name,'\',\'',completed_view_name,'\');');
+                    execute immediate :res;
+                ELSE
+                    res := concat('call DB_INGESTION_TOOLS_{{environment}}.STREAMING.CREATE_KAFKA_SCHEMA_VIEW(\'',completed_table_name,'\',\'',completed_view_name,'\');');
+                    execute immediate :res;
+                END IF;
             ELSE
-                res := concat('call DB_INGESTION_TOOLS_{{environment}}.STREAMING.CREATE_KAFKA_SCHEMA_VIEW(\'',completed_table_name,'\',\'',completed_view_name,'\');');
-                execute immediate :res;
+                -- Chequeamos que la tabla Kafka venga con el esquema definido en los metadatos
+                select iff(RECORD_METADATA:headers.ValueRecordSchema is null, FALSE, TRUE) into :is_schema_present_in_metadata from identifier(:completed_table_name) where RECORD_METADATA:headers.A_ENTTYP <> 'DL' limit 1;
+                -- Si la tabla KAFKA viene sin esquema, no hacemos nada
+                IF (is_schema_present_in_metadata) THEN
+                    res := concat('call DB_INGESTION_TOOLS_{{environment}}.STREAMING.CREATE_KAFKA_FLATTEN_VIEW(\'',completed_table_name,'\',\'',completed_view_name,'\');');
+                    execute immediate :res;
+                END IF;
             END IF;
-        ELSE
-            res := concat('call DB_INGESTION_TOOLS_{{environment}}.STREAMING.CREATE_KAFKA_FLATTEN_VIEW(\'',completed_table_name,'\',\'',completed_view_name,'\');');
-            execute immediate :res;
+            -- Si la tabla KAFKA viene sin esquema, no hacemos nada
+            IF (is_schema_present_in_metadata) THEN
+                -- Creamos el Stream sobre la vista recien creada
+                let create_stream_view_sentence := concat('CREATE OR REPLACE STREAM ',completed_view_name,'_STREAM ON VIEW ',completed_view_name,' APPEND_ONLY = TRUE SHOW_INITIAL_ROWS = TRUE;');
+                execute immediate create_stream_view_sentence;
+
+                -- Creamos el Stream sobre la tabla recien creada
+                let create_stream_table_sentence := concat('CREATE OR REPLACE STREAM ',completed_table_name,'_STREAM ON TABLE ',completed_table_name,' APPEND_ONLY = TRUE SHOW_INITIAL_ROWS = TRUE;');
+                execute immediate create_stream_table_sentence;
+
+                -- Creamos el task que ejecutará la consolidación.
+                let create_task_sentence := concat('CREATE OR REPLACE TASK ',completed_table_name,'_CONSOLIDATION_TASK WAREHOUSE = {{warehouse}} SCHEDULE = \'5 MINUTES\' AS ');
+                create_task_sentence := concat(create_task_sentence,'call DB_INGESTION_TOOLS_{{environment}}.STREAMING.CONSOLIDATE_TABLE_MERGE(');
+                create_task_sentence := concat(create_task_sentence, '\'', origin_database,'\',');
+                create_task_sentence := concat(create_task_sentence, '\'', origin_schema,'\',');
+                create_task_sentence := concat(create_task_sentence, '\'', completed_view_name,'\',');
+                create_task_sentence := concat(create_task_sentence, '\'', completed_view_name,'_STREAM\',');
+                create_task_sentence := concat(create_task_sentence, '\'', completed_table_name, consolidated_table_suffix,'\',');
+                create_task_sentence := concat(create_task_sentence, '\'PRIMARY_KEY_COLUMNS\',');
+                IF (is_glue) THEN
+                    create_task_sentence := concat(create_task_sentence, '\'GLCHANGETIME\'');
+                ELSE
+                    create_task_sentence := concat(create_task_sentence, '\'OFFSET\'');
+                END IF;
+                create_task_sentence := concat(create_task_sentence, ');');
+                execute immediate create_task_sentence;
+                -- Ejecutamos el nuevo task
+                let resume_task_sentence := concat('ALTER TASK ',completed_table_name,'_CONSOLIDATION_TASK RESUME;');
+                execute immediate resume_task_sentence;
+            END IF;
         END IF;
-
-        -- Creamos el Stream sobre la vista recien creada
-        let create_stream_view_sentence := concat('CREATE OR REPLACE STREAM ',completed_view_name,'_STREAM ON VIEW ',completed_view_name,' APPEND_ONLY = TRUE SHOW_INITIAL_ROWS = TRUE;');
-        execute immediate create_stream_view_sentence;
-
-        -- Creamos el Stream sobre la tabla recien creada
-        let create_stream_table_sentence := concat('CREATE OR REPLACE STREAM ',completed_table_name,'_STREAM ON TABLE ',completed_table_name,' APPEND_ONLY = TRUE SHOW_INITIAL_ROWS = TRUE;');
-        execute immediate create_stream_table_sentence;
-
-        -- Creamos el task que ejecutará la consolidación.
-        let create_task_sentence := concat('CREATE OR REPLACE TASK ',completed_table_name,'_CONSOLIDATION_TASK WAREHOUSE = {{warehouse}} SCHEDULE = \'5 MINUTES\' AS ');
-        create_task_sentence := concat(create_task_sentence,'call DB_INGESTION_TOOLS_{{environment}}.STREAMING.CONSOLIDATE_TABLE_MERGE(');
-        create_task_sentence := concat(create_task_sentence, '\'', origin_database,'\',');
-        create_task_sentence := concat(create_task_sentence, '\'', origin_schema,'\',');
-        create_task_sentence := concat(create_task_sentence, '\'', completed_view_name,'\',');
-        create_task_sentence := concat(create_task_sentence, '\'', completed_view_name,'_STREAM\',');
-        create_task_sentence := concat(create_task_sentence, '\'', completed_table_name, consolidated_table_suffix,'\',');
-        create_task_sentence := concat(create_task_sentence, '\'PRIMARY_KEY_COLUMNS\',');
-        IF (is_glue) THEN
-            create_task_sentence := concat(create_task_sentence, '\'GLCHANGETIME\'');
-        ELSE
-            create_task_sentence := concat(create_task_sentence, '\'OFFSET\'');
-        END IF;
-        create_task_sentence := concat(create_task_sentence, ');');
-        execute immediate create_task_sentence;
-        -- Ejecutamos el nuevo task
-        let resume_task_sentence := concat('ALTER TASK ',completed_table_name,'_CONSOLIDATION_TASK RESUME;');
-        execute immediate resume_task_sentence;
-        
         RETURN 'SUCCESS';
     END;
 $$
