@@ -2,7 +2,7 @@ USE DATABASE DB_INGESTION_TOOLS_{{environment}};
 
 USE SCHEMA UTILS;
 
-CREATE OR REPLACE FUNCTION parse_field_type ( col string , longitud int, precision int, decimales int)
+CREATE OR REPLACE FUNCTION UDF_PARSE_FIELD_TYPE ( col string , longitud int, precision int, decimales int)
   RETURNS STRING
   AS
   $$
@@ -31,7 +31,7 @@ CREATE OR REPLACE FUNCTION parse_field_type ( col string , longitud int, precisi
   ;
 
 -- Funcion para calcular los campos que conforman la PK de una tabla y devolverlos en un array
-create or replace function get_table_pk_array (DDL string)
+create or replace function UDF_GET_TABLE_PK_ARRAY (DDL string)
 returns array
 language javascript
 as
@@ -59,7 +59,7 @@ $$
 
 USE SCHEMA STREAMING;
 -- Crea una vista aplanada de una tabla Kafka
-CREATE OR REPLACE PROCEDURE CREATE_KAFKA_FLATTEN_VIEW (
+CREATE OR REPLACE PROCEDURE SP_CREATE_KAFKA_FLATTEN_VIEW (
   source_table_name VARCHAR, -- Nombre de la tabla Kafka, incluido base de datos y esquema
   view_name VARCHAR -- Nombre que recibirá la vista creada
 )
@@ -115,7 +115,7 @@ $$
 
 
 -- Crea una vista a partir de una tabla Kafka con inyección de esquema
-CREATE OR REPLACE PROCEDURE DB_INGESTION_TOOLS_{{environment}}.STREAMING.CREATE_KAFKA_SCHEMA_VIEW (
+CREATE OR REPLACE PROCEDURE SP_CREATE_KAFKA_SCHEMA_VIEW (
   source_table_name VARCHAR, -- Nombre de la tabla Kafka, incluido base de datos y esquema
   view_name VARCHAR -- Nombre que recibirá la vista creada
 )
@@ -143,7 +143,7 @@ $$
 ;
 
 -- Crea una vista de una tabla SNP Glue
-CREATE OR REPLACE PROCEDURE DB_INGESTION_TOOLS_{{environment}}.STREAMING.CREATE_GLUE_VIEW (
+CREATE OR REPLACE PROCEDURE SP_CREATE_GLUE_VIEW (
   source_table_name VARCHAR, -- Nombre de la tabla SNP Glue, incluido base de datos y esquema
   view_name VARCHAR -- Nombre que recibirá la vista creada
 )
@@ -169,7 +169,7 @@ $$
 
 
 -- Procedimiento para consolidación de tablas streaming
-CREATE OR REPLACE PROCEDURE DB_INGESTION_TOOLS_{{environment}}.STREAMING.CONSOLIDATE_TABLE_MERGE (
+CREATE OR REPLACE PROCEDURE SP_CONSOLIDATE_TABLE_MERGE (
 	database VARCHAR, -- Base de datos sobre la que trabajamos
     schema VARCHAR, -- Esquema sobre el que trabajamos
     source_view_name VARCHAR, -- Nombre de la vista aplanada de la tabla Kafka o SNP Glue (incluido base de datos y esquema)
@@ -283,7 +283,7 @@ $$
 
 
 -- Procedimiento que comprueba si existen nuevas tablas procedentes de una fuente Streaming
-CREATE OR REPLACE PROCEDURE DB_INGESTION_TOOLS_{{environment}}.STREAMING.CHECK_NEW_STREAMING_TABLE (
+CREATE OR REPLACE PROCEDURE SP_CHECK_NEW_STREAMING_TABLE (
     origin_database VARCHAR, -- Base de datos Origen donde buscar nuevas tablas
     origin_schema VARCHAR, -- Esquema Origen donde buscar nuevas tablas
 	table_prefix VARCHAR, -- Prefijo de las tablas a buscar
@@ -311,7 +311,7 @@ $$
         FOR new_table IN tables_cursor DO
             -- Construimos el nombre de la tabla y la vista
             let completed_table_name := concat(new_table.TABLE_CATALOG,'.',new_table.TABLE_SCHEMA,'.',new_table.TABLE_NAME);
-            let completed_view_name := concat(new_table.TABLE_CATALOG,'.',new_table.TABLE_SCHEMA,'.',new_table.TABLE_NAME,'_VW');
+            let completed_view_name := concat(new_table.TABLE_CATALOG,'.',new_table.TABLE_SCHEMA,'.VW_',new_table.TABLE_NAME);
             -- Chequeamos que la tabla no esté vacia. Si está vacía no hacemos nada
             SELECT count(*) INTO :count_rows FROM identifier(:completed_table_name);
 		    IF (count_rows > 0) THEN
@@ -345,7 +345,7 @@ $$
                     execute immediate create_stream_table_sentence;
 
                     -- Creamos el task que ejecutará la consolidación.
-                    let create_task_sentence := concat('CREATE OR REPLACE TASK ',completed_table_name,'_CONSOLIDATION_TASK WAREHOUSE = {{warehouse}} SCHEDULE = \'5 MINUTES\' AS ');
+                    let create_task_sentence := concat('CREATE OR REPLACE TASK TSK_',completed_table_name,'_CONSOLIDATION WAREHOUSE = {{warehouse}} SCHEDULE = \'5 MINUTES\' AS ');
                     create_task_sentence := concat(create_task_sentence,'call DB_INGESTION_TOOLS_{{environment}}.STREAMING.CONSOLIDATE_TABLE_MERGE(');
                     create_task_sentence := concat(create_task_sentence, '\'', new_table.TABLE_CATALOG,'\',');
                     create_task_sentence := concat(create_task_sentence, '\'', new_table.TABLE_SCHEMA,'\',');
@@ -361,7 +361,7 @@ $$
                     create_task_sentence := concat(create_task_sentence, ');');
                     execute immediate create_task_sentence;
                     -- Ejecutamos el nuevo task
-                    let resume_task_sentence := concat('ALTER TASK ',completed_table_name,'_CONSOLIDATION_TASK RESUME;');
+                    let resume_task_sentence := concat('ALTER TASK TSK_',completed_table_name,'_CONSOLIDATION RESUME;');
                     execute immediate resume_task_sentence;
                 END IF;
             END IF;
@@ -373,7 +373,7 @@ $$
 ;
 
 -- Procedimiento que crea todas las estructuras necesarias para trabajar con una tabla Streaming nueva
-CREATE OR REPLACE PROCEDURE DB_INGESTION_TOOLS_{{environment}}.STREAMING.CREATE_STREAMING_TABLE_COMPONENTS (
+CREATE OR REPLACE PROCEDURE SP_CREATE_STREAMING_TABLE_COMPONENTS (
     origin_database VARCHAR, -- Base de datos Origen 
     origin_schema VARCHAR, -- Esquema Origen 
 	table_name VARCHAR, -- Nombre de la tabla
@@ -393,7 +393,7 @@ $$
     BEGIN
         -- Construimos el nombre de la tabla y la vista
         let completed_table_name := concat(origin_database,'.',origin_schema,'.',table_name);
-        let completed_view_name := concat(origin_database,'.',origin_schema,'.',table_name,'_VW');
+        let completed_view_name := concat(origin_database,'.',origin_schema,'.VW_',table_name);
         -- Chequeamos que la tabla no esté vacia. Si está vacía no hacemos nada
         SELECT count(*) INTO :count_rows FROM identifier(:completed_table_name);
         IF (count_rows > 0) THEN
@@ -427,7 +427,7 @@ $$
                 execute immediate create_stream_table_sentence;
 
                 -- Creamos el task que ejecutará la consolidación.
-                let create_task_sentence := concat('CREATE OR REPLACE TASK ',completed_table_name,'_CONSOLIDATION_TASK WAREHOUSE = {{warehouse}} SCHEDULE = \'5 MINUTES\' AS ');
+                let create_task_sentence := concat('CREATE OR REPLACE TASK TSK_',completed_table_name,'_CONSOLIDATION WAREHOUSE = {{warehouse}} SCHEDULE = \'5 MINUTES\' AS ');
                 create_task_sentence := concat(create_task_sentence,'call DB_INGESTION_TOOLS_{{environment}}.STREAMING.CONSOLIDATE_TABLE_MERGE(');
                 create_task_sentence := concat(create_task_sentence, '\'', origin_database,'\',');
                 create_task_sentence := concat(create_task_sentence, '\'', origin_schema,'\',');
@@ -443,7 +443,7 @@ $$
                 create_task_sentence := concat(create_task_sentence, ');');
                 execute immediate create_task_sentence;
                 -- Ejecutamos el nuevo task
-                let resume_task_sentence := concat('ALTER TASK ',completed_table_name,'_CONSOLIDATION_TASK RESUME;');
+                let resume_task_sentence := concat('ALTER TASK TSK_',completed_table_name,'_CONSOLIDATION RESUME;');
                 execute immediate resume_task_sentence;
             END IF;
         END IF;
@@ -647,7 +647,7 @@ end;
 $$;
 
 
-CREATE OR REPLACE PROCEDURE DB_INGESTION_TOOLS_{{environment}}.STREAMING.UNLOAD_TABLE (
+CREATE OR REPLACE PROCEDURE DB_INGESTION_TOOLS_{{environment}}.STREAMING.SP_UNLOAD_TABLE (
 	id int,
 	table_catalog VARCHAR,
 	table_schema VARCHAR,
