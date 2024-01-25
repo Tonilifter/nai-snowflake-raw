@@ -18,6 +18,6 @@ CREATE OR REPLACE TABLE UNLOAD_CONFIG(
 	TS_SNAPSHOT TIMESTAMP_NTZ default current_timestamp()
 );
 
-CREATE STAGE unload_storage_stage
+CREATE STAGE STG_UNLOAD
   URL = 'azure://{{datalake}}.blob.core.windows.net/snowflake/'
   STORAGE_INTEGRATION = INT_STORAGE_UNLOAD_DES;
