@@ -20,4 +20,4 @@ CREATE OR REPLACE TABLE UNLOAD_CONFIG(
 
 CREATE STAGE unload_storage_stage
   URL = 'azure://{{datalake}}.blob.core.windows.net/snowflake/'
-  STORAGE_INTEGRATION = unload_storage_integration;
+  STORAGE_INTEGRATION = INT_STORAGE_UNLOAD_DES;
