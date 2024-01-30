@@ -44,7 +44,7 @@ begin
         let field_type := field.CO_TYPE::string;
         let field_length := field.QT_LENGTH::int;
         let field_scale := field.QT_SCALE::int;
-        let parsed_field_type varchar := DB_INGESTION_TOOLS_{{environment}}.UTILS.UDF_PARSE_FIELD_TYPE(field.CO_TYPE, field.QT_LENGTH, field.QT_SCALE)::string;
+        let parsed_field_type varchar := DB_INGESTION_TOOLS_{{environment}}.UTILS.UDF_PARSE_FIELD_TYPE(field.CO_TYPE, field.QT_LENGTH, field.QT_LENGTH, field.QT_SCALE)::string;
         
         target_fields_sql := :target_fields_sql || :field_name || ' ' || :parsed_field_type || ',';
 
@@ -119,7 +119,7 @@ begin
     -- Create and start the consolidation task
     let consolidation_task varchar := 'TSK_' || :target_table || '_CONSOLIDATION';
     let consolidation_task_path varchar := :target_catalog || '.' || :target_schema || '.' || :consolidation_task;
-    let create_task_sql := 'create or replace task ' || :consolidation_task_path || ' warehouse = {{warehouse}} schedule = \'5 MINUTES\' as ' ||
+    let create_task_sql := 'create or replace task ' || :consolidation_task_path || ' warehouse = {{warehouse}} schedule = \'120 MINUTES\' as ' ||
         'call DB_INGESTION_TOOLS_{{environment}}.STREAMING.SP_CONSOLIDATE_TABLE_MERGE(\'' || 
             :target_catalog || '\',\'' ||
             :target_schema || '\',\'' ||
@@ -172,7 +172,7 @@ begin
         let field_length := field.QT_LENGTH::int;
         let field_scale := field.QT_SCALE::int;
 
-        let parsed_field_type varchar := DB_INGESTION_TOOLS_{{environment}}.UTILS.UDF_PARSE_FIELD_TYPE(field.CO_TYPE, field.QT_LENGTH, field.QT_SCALE)::string;
+        let parsed_field_type varchar := DB_INGESTION_TOOLS_{{environment}}.UTILS.UDF_PARSE_FIELD_TYPE(field.CO_TYPE, field.QT_LENGTH, field.QT_LENGTH, field.QT_SCALE)::string;
 
         let field_select_sql varchar := '$1:' || :field_name || '::' || :parsed_field_type || ',';
         fields_to_select_sql := :fields_to_select_sql || :field_select_sql;
@@ -230,7 +230,7 @@ begin
         let field_type := field.CO_TYPE::string;
         let field_length := field.QT_LENGTH::int;
         let field_scale := field.QT_SCALE::int;
-        let parsed_field_type varchar := DB_INGESTION_TOOLS_{{environment}}.UTILS.UDF_PARSE_FIELD_TYPE(field.CO_TYPE, field.QT_LENGTH, field.QT_SCALE)::string;
+        let parsed_field_type varchar := DB_INGESTION_TOOLS_{{environment}}.UTILS.UDF_PARSE_FIELD_TYPE(field.CO_TYPE, field.QT_LENGTH, field.QT_LENGTH, field.QT_SCALE)::string;
         let field_first_character := field.CO_FIRST_CHARACTER::int;
         let field_position := field.CO_POSITION::int;
 
@@ -287,13 +287,13 @@ execute as caller
 as
 $$
 declare
-    ts_batch_load timestamp_ntz := current_timestamp();
+    load_history_view varchar := :co_catalog || '.INFORMATION_SCHEMA.LOAD_HISTORY';
 begin
     insert into DB_INGESTION_TOOLS_{{environment}}.BATCH.TB_DATA_CONTROL_STATUS
     select
         :id_data_factory_run as CO_DF_RUN_ID,
         :ds_process_type as DS_PROCESS,
-        :ts_batch_load as DT_LOAD,
+        current_timestamp() as DT_LOAD,
         :co_status as CO_STATUS,
         :co_catalog as DS_TARGET_CATALOG,
         :co_schema as DS_TARGET_SCHEMA,
@@ -301,12 +301,14 @@ begin
         :ds_file_name as DS_FILE_NAME,
         lh.ROW_COUNT as QT_TOTAL_ROWS,
         lh.ROW_PARSED as QT_LOADED_ROWS
-    from DB_INGESTION_TOOLS_{{environment}}.INFORMATION_SCHEMA.LOAD_HISTORY lh
+    from identifier(:load_history_view) lh
     where FILE_NAME like ('%' || :file_name)
-        and LAST_LOAD_TIME > dateadd(days, -1, current_date())
         and TABLE_NAME = :target_table
         and SCHEMA_NAME = :target_schema
+    order by LAST_LOAD_TIME DESC
     limit 1;
+
+    return 'OK';
 exception
     when other then
         return 'KO';
