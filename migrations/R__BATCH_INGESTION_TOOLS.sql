@@ -28,7 +28,7 @@ begin
 
     -- Information about the target table fields
     let fields_config_rs resultset := (
-        select concat('"', upper(DS_FIELD), '"') as DS_FIELD, CO_POSITION, CO_FIRST_CHARACTER, FL_IS_PK, CO_TYPE, QT_LENGTH, QT_SCALE
+        select concat('"', upper(DS_FIELD_NAME), '"') as DS_FIELD_NAME, CO_POSITION, CO_FIRST_CHARACTER, FL_IS_PK, CO_TYPE, QT_LENGTH, QT_SCALE
         from DB_INGESTION_TOOLS_{{environment}}.BATCH.TB_BATCH_FIELDS_CONFIG
         where ID_SOURCE_BATCH = :target_id
         order by CO_POSITION
@@ -39,7 +39,7 @@ begin
     let target_fields_sql varchar := '';
     let target_pk_fields_sql varchar := '';
     for field in fields_config_c do
-        let field_name := field.DS_FIELD::string;
+        let field_name := field.DS_FIELD_NAME::string;
         let field_is_pk := field.FL_IS_PK::boolean;
         let field_type := field.CO_TYPE::string;
         let field_length := field.QT_LENGTH::int;
@@ -87,7 +87,7 @@ begin
         from DB_INGESTION_TOOLS_{{environment}}.BATCH.TB_BATCH_CONFIG
         where ID_SOURCE_BATCH = :target_id
     );
-    
+
     let batch_config_c cursor for batch_config_rs;
     open batch_config_c;
     fetch batch_config_c into target_catalog, target_schema, target_table;
@@ -157,7 +157,7 @@ declare
 begin
     -- Information about the target table fields
     let fields_config_rs resultset := (
-        select concat('"', upper(DS_FIELD), '"') as DS_FIELD, CO_TYPE, QT_LENGTH, QT_SCALE
+        select concat('"', upper(DS_FIELD_NAME), '"') as DS_FIELD_NAME, CO_TYPE, QT_LENGTH, QT_SCALE
         from DB_INGESTION_TOOLS_{{environment}}.BATCH.TB_BATCH_FIELDS_CONFIG
         where ID_SOURCE_BATCH = :target_id
         order by CO_POSITION
@@ -167,7 +167,7 @@ begin
     -- Iterate over the fields to generate the select subquery
     let fields_to_select_sql varchar := '';
     for field in fields_config_c do
-        let field_name := field.DS_FIELD::string;
+        let field_name := field.DS_FIELD_NAME::string;
         let field_type := field.CO_TYPE::string;
         let field_length := field.QT_LENGTH::int;
         let field_scale := field.QT_SCALE::int;
@@ -200,7 +200,8 @@ create or replace procedure SP_LOAD_TEXT(
     external_file_path varchar,
     target_path varchar,
     is_fixed_width_file boolean,
-    file_has_header boolean
+    file_has_header boolean,
+    file_separator varchar
 )
 returns varchar
 language SQL
@@ -213,7 +214,7 @@ declare
 begin
     -- Information about the target table fields
     let fields_config_rs resultset := (
-        select concat('"', upper(DS_FIELD), '"') as DS_FIELD, CO_POSITION, CO_FIRST_CHARACTER, FL_IS_PK, CO_TYPE, QT_LENGTH, QT_SCALE
+        select concat('"', upper(DS_FIELD_NAME), '"') as DS_FIELD_NAME, CO_POSITION, CO_FIRST_CHARACTER, FL_IS_PK, CO_TYPE, QT_LENGTH, QT_SCALE
         from DB_INGESTION_TOOLS_{{environment}}.BATCH.TB_BATCH_FIELDS_CONFIG
         where ID_SOURCE_BATCH = :target_id
         order by CO_POSITION
@@ -224,7 +225,7 @@ begin
     let fields_to_select_sql varchar := '';
     for field in fields_config_c do
 
-        let field_name := field.DS_FIELD::string;
+        let field_name := field.DS_FIELD_NAME::string;
         let field_is_pk := field.FL_IS_PK::boolean;
         let field_type := field.CO_TYPE::string;
         let field_length := field.QT_LENGTH::int;
