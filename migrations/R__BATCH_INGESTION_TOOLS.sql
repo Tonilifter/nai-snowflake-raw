@@ -2,8 +2,8 @@ USE DATABASE DB_INGESTION_TOOLS_{{environment}};
 
 USE SCHEMA BATCH;
 
--- Procedure to create all the database structures (Tables, Views, Task...) to handle the consolidation of he ingested data
-create or replace procedure SP_CREATE_BATCH_TABLES(target_id number)
+-- Procedure to create the table in which data will be loaded
+create or replace procedure SP_CREATE_BATCH_TABLE(target_id number)
 returns varchar
 language SQL
 execute as caller
@@ -16,7 +16,7 @@ declare
 begin
     -- Information about the target table fields
     let batch_config_rs resultset := (
-        select ID_SOURCE_BATCH, upper(CO_TARGET_CATALOG), upper(CO_TARGET_SCHEMA), upper(CO_TARGET_TABLE), FL_HAS_HEADER, TX_FILE_SEPARATOR
+        select upper(CO_TARGET_CATALOG), upper(CO_TARGET_SCHEMA), upper(CO_TARGET_TABLE)
         from DB_INGESTION_TOOLS_{{environment}}.BATCH.TB_BATCH_CONFIG
         where ID_SOURCE_BATCH = :target_id
     );
@@ -25,7 +25,6 @@ begin
     fetch batch_config_c into target_catalog, target_schema, target_table;
     close batch_config_c;
     let target_table_path varchar := :target_catalog || '.' || :target_schema || '.' || :target_table;
-    let target_view_path varchar := :target_catalog || '.' || :target_schema || '.' || 'VW_' || :target_table;
 
     -- Information about the target table fields
     let fields_config_rs resultset := (
@@ -62,22 +61,70 @@ begin
     let create_table_sql varchar := 'create table if not exists ' || :target_table_path || '(' || :target_fields_sql || ') enable_schema_evolution = true;';
     execute immediate :create_table_sql;
 
+    return 'OK';
+exception
+    when other then
+        return 'KO';
+end;
+$$;
+
+-- Procedure to create all the database structures (Tables, Views, Task...) to handle the consolidation of he ingested data
+create or replace procedure SP_CREATE_CONSOLIDATION_STRUCTURES(target_id number)
+returns varchar
+language SQL
+execute as caller
+as
+$$
+declare
+    target_catalog varchar;
+    target_schema varchar;
+    target_table varchar;
+    fl_already_created_view number;
+begin
+    -- Information about the target table fields
+    let batch_config_rs resultset := (
+        select upper(CO_TARGET_CATALOG), upper(CO_TARGET_SCHEMA), upper(CO_TARGET_TABLE)
+        from DB_INGESTION_TOOLS_{{environment}}.BATCH.TB_BATCH_CONFIG
+        where ID_SOURCE_BATCH = :target_id
+    );
+    
+    let batch_config_c cursor for batch_config_rs;
+    open batch_config_c;
+    fetch batch_config_c into target_catalog, target_schema, target_table;
+    close batch_config_c;
+
+    let target_table_path varchar := :target_catalog || '.' || :target_schema || '.' || :target_table;
+    let target_view varchar := 'VW_' || :target_table;
+    let target_view_path varchar := :target_catalog || '.' || :target_schema || '.' || :target_view;
+
+    -- Check if the consolidation structures have been created before
+    let information_schema_views varchar := :target_catalog || '.INFORMATION_SCHEMA.VIEWS';
+    select count(*) into :fl_already_created_view FROM identifier(:information_schema_views) where TABLE_CATALOG = :target_catalog and table_schema = :target_schema and TABLE_NAME = :target_view;
+    if (:fl_already_created_view = 1) then
+        return 'OK';
+    end if;
+
     -- Create the consolidation view
-    let create_view_sql varchar := 'call DB_INGESTIONS_TOOLS_{{environment}}.STREAMING.SP_CREATE_GLUE_VIEW(\'' || :target_table_path || '\',\'' || :target_view_path || '\');';
+    let create_view_sql varchar := 'call DB_INGESTIONS_TOOLS_{{environment}}.STREAMING.SP_CREATE_GLUE_VIEW(\'' ||
+        :target_table_path || '\',\'' ||
+        :target_view_path || '\');';
     execute immediate :create_view_sql;
 
     -- Create the consolidation stream
-    let create_stream_sql varchar := 'create or replace stream ' || :target_view_path || '_STREAM on view ' || :target_view_path || ' APPEND_ONLY = TRUE SHOW_INITIAL_ROWS = TRUE;';
+    let target_stream varchar := 'STM_' || :target_view; 
+    let target_stream_path varchar := :target_catalog || '.' || :target_schema || '.' || :target_stream;
+    let create_stream_sql varchar := 'create or replace stream ' || :target_stream_path || ' on view ' || :target_view_path || ' APPEND_ONLY = TRUE SHOW_INITIAL_ROWS = TRUE;';
     execute immediate create_stream_sql;
 
     -- Create and start the consolidation task
-    let consolidation_task_name varchar := 'TSK_' || :target_table_path || '_CONSOLIDATION'; 
-    let create_task_sql := 'create or replace task ' || :consolidation_task_name || ' warehouse = {{warehouse}} schedule = \'5 MINUTES\' as ' ||
+    let consolidation_task varchar := 'TSK_' || :target_table || '_CONSOLIDATION';
+    let consolidation_task_path varchar := :target_catalog || '.' || :target_schema || '.' || :consolidation_task;
+    let create_task_sql := 'create or replace task ' || :consolidation_task_path || ' warehouse = {{warehouse}} schedule = \'5 MINUTES\' as ' ||
         'call DB_INGESTION_TOOLS_{{environment}}.STREAMING.SP_CONSOLIDATE_TABLE_MERGE(\'' || 
             :target_catalog || '\',\'' ||
             :target_schema || '\',\'' ||
             :target_view_path || '\',\'' ||
-            :target_view_path || '_STREAM\',\'' ||
+            :target_stream_path || '\',\'' ||
             :target_table_path || '_CONSOLIDATED\',\'' ||
             'PRIMARY_KEY_COLUMNS' || '\',\'' ||
             'TS_LOAD' || '\');'
