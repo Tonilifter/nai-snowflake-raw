@@ -280,8 +280,7 @@ create or replace procedure SP_UPDATE_LOAD_HISTORY(
     co_catalog varchar,
     co_schema varchar,
     co_table varchar,
-    ds_file_name varchar,
-
+    ds_file_name varchar
 )
 returns varchar
 language SQL
