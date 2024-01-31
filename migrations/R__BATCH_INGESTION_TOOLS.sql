@@ -1,5 +1,7 @@
 USE DATABASE DB_INGESTION_TOOLS_{{environment}};
 
+USE ROLE {{environment}}_LND_AUTOMATION_FR;
+
 USE SCHEMA BATCH;
 
 -- Procedure to create the table in which data will be loaded
@@ -289,7 +291,7 @@ $$
 declare
     load_history_view varchar := :co_catalog || '.INFORMATION_SCHEMA.LOAD_HISTORY';
 begin
-    insert into DB_INGESTION_TOOLS_{{environment}}.BATCH.TB_DATA_CONTROL_STATUS
+    insert into DB_INGESTION_TOOLS_{{environment}}.DATA_CONTROL.TB_DATA_CONTROL_STATUS
     select
         :id_data_factory_run as CO_DF_RUN_ID,
         :ds_process_type as DS_PROCESS,

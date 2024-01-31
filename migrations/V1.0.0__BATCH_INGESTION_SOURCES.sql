@@ -1,5 +1,5 @@
 -- Batch ingestion file's parametrization table
-USE ROLE SYSADMIN;
+USE ROLE {{environment}}_LND_AUTOMATION_FR;
 USE DATABASE DB_INGESTION_TOOLS_{{environment}};
 USE SCHEMA BATCH;
 

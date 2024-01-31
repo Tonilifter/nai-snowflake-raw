@@ -1,5 +1,7 @@
 USE DATABASE DB_INGESTION_TOOLS_{{environment}};
 
+USE ROLE {{environment}}_LND_AUTOMATION_FR;
+
 USE SCHEMA UTILS;
 
 CREATE OR REPLACE FUNCTION UDF_PARSE_FIELD_TYPE ( col string , longitud int, precision int, decimales int)
@@ -359,7 +361,7 @@ $$
                     create_task_sentence := concat(create_task_sentence, '\'', new_table.TABLE_CATALOG,'\',');
                     create_task_sentence := concat(create_task_sentence, '\'', new_table.TABLE_SCHEMA,'\',');
                     create_task_sentence := concat(create_task_sentence, '\'', completed_view_name,'\',');
-                    create_task_sentence := concat(create_task_sentence, '\' ', completed_stream_view_name,'\',');
+                    create_task_sentence := concat(create_task_sentence, '\'', completed_stream_view_name,'\',');
                     create_task_sentence := concat(create_task_sentence, '\'', completed_table_name, consolidated_table_suffix,'\',');
                     create_task_sentence := concat(create_task_sentence, '\'PRIMARY_KEY_COLUMNS\',');
                     IF (is_glue) THEN
@@ -372,6 +374,18 @@ $$
                     -- Ejecutamos el nuevo task
                     let resume_task_sentence := concat('ALTER TASK ', completed_task_name, ' RESUME;');
                     execute immediate resume_task_sentence;
+
+                    let lake_path := concat(new_table.TABLE_CATALOG, '/', new_table.TABLE_SCHEMA, '/', new_table.TABLE_NAME, '/');
+                    let partition_expression := '';
+                    IF (is_glue) THEN
+                        partition_expression := 'split(GLCHANGETIME,\'.\')[0],\'YYYYMMDDHH24MISS\'';
+                    ELSE
+                        partition_expression := 'RECORD_CONTENT:A_TIMSTAMP';
+                    END IF;
+                    
+                    insert into TB_UNLOAD_CONFIG(CO_TABLE_CATALOG, CO_TABLE_SCHEMA, CO_TABLE_NAME, DS_PARTITION_FIELD_EXPRESION, DS_DATA_LAKE_PATH, SQ_DAY_OF_MONTH, SQ_MONTH, SQ_DAY_OF_WEEK, CO_THREAD) 
+                        select :new_table.TABLE_CATALOG, :new_table.TABLE_SCHEMA, :new_table.TABLE_NAME, :partition_expression, :lake_path, ARRAY_CONSTRUCT('*'), ARRAY_CONSTRUCT('*'), ARRAY_CONSTRUCT('*'), 1;
+
                 END IF;
             END IF;
         END FOR;
@@ -476,7 +490,7 @@ CREATE OR REPLACE PROCEDURE DB_INGESTION_TOOLS_{{environment}}.STREAMING.SP_UNLO
 	table_schema VARCHAR,
 	table_name VARCHAR,
 	data_lake_path VARCHAR,
-	partition_field VARCHAR
+	partition_field_expression VARCHAR
 )
 RETURNS VARCHAR
 LANGUAGE SQL
@@ -487,7 +501,7 @@ $$
     query varchar;
     table_name_join varchar := concat(:table_catalog,'.',:table_schema,'.STM_', :table_name);
   BEGIN
-    query := concat('copy into @STG_UNLOAD/',data_lake_path,' from (select * from ', table_name_join,')',' partition by (to_char(date(',partition_field,'),\'YYYY/MM/DD\')) file_format = (type = \'parquet\') header = true',';');
+    query := concat('copy into @STG_UNLOAD/',data_lake_path,' from (select * from ', table_name_join,')',' partition by (to_char(date(',partition_field_expression,'),\'YYYY/MM/DD\')) file_format = (type = \'parquet\') header = true',';');
     execute immediate query;
 
     query := concat('UPDATE DB_INGESTION_TOOLS_{{environment}}.STREAMING.TB_UNLOAD_CONFIG SET LAST_LOAD = current_date(), LAST_STATUS = \'SUCCESS\', TS_SNAPSHOT = current_timestamp()  WHERE ID = ', id);
