@@ -29,6 +29,6 @@ create or replace table TB_BATCH_FIELDS_CONFIG (
     CO_TYPE varchar not null comment 'Snowflake SQL type of the field',
     QT_LENGTH number default 0 comment 'Length of the field',
     QT_SCALE number default 0 comment 'Scale of the field',
-    constraint _fields_config_pk primary key (ID_SOURCE_BATCH, DS_FIELD),
+    constraint _fields_config_pk primary key (ID_SOURCE_BATCH, DS_FIELD_NAME),
     constraint _file_config_fk foreign key (ID_SOURCE_BATCH) references DB_INGESTION_TOOLS_{{environment}}.BATCH.TB_BATCH_CONFIG(ID_SOURCE_BATCH)
 );
