@@ -129,7 +129,7 @@ begin
             :target_stream_path || '\',\'' ||
             :target_table_path || '_CONSOLIDATED\',\'' ||
             'PRIMARY_KEY_COLUMNS' || '\',\'' ||
-            'TS_LOAD' || '\');'
+            'TS_LOAD' || '\');';
     execute immediate create_task_sentence;
 
     let start_task_sql := 'alter task ' || :consolidation_task_name || ' resume';
@@ -185,7 +185,7 @@ begin
     let file_pattern_sql varchar := 'pattern => \'' || '.*' || :external_file_path || '\'';
     let select_sql varchar := 'select ' || rtrim(fields_to_select_sql, ',') || ', cast(\''|| :ts_load || '\' as timestamp_ntz) 
         from ' || :external_stage || '(' || :file_format_sql || ', ' || :file_pattern_sql || ')';
-    let copy_into_sql varchar := 'copy into ' || :target_path || ' from (' || :select_sql || ');'
+    let copy_into_sql varchar := 'copy into ' || :target_path || ' from (' || :select_sql || ');';
     execute immediate :copy_into_sql;
 
     return 'OK';
