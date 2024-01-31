@@ -312,15 +312,18 @@ $$
         -- Recorremos todas las tablas Kafka
         FOR new_table IN tables_cursor DO
             -- Construimos el nombre de la tabla y la vista
-            let database_and_schema := concat(new_table.TABLE_CATALOG,'.',new_table.TABLE_SCHEMA, '.');
-            let completed_table_name := concat(database_and_schema, new_table.TABLE_NAME);
-            let view_name := concat('VW_', new_table.TABLE_NAME);
+            let database := new_table.TABLE_CATALOG;
+            let schema := new_table.TABLE_SCHEMA;
+            let tablename := new_table.TABLE_NAME;
+            let database_and_schema := concat(database,'.',schema, '.');
+            let completed_table_name := concat(database_and_schema, tablename);
+            let view_name := concat('VW_', tablename);
             let completed_view_name := concat(database_and_schema, view_name);
-            let stream_table_name := concat('STM_', new_table.TABLE_NAME);
+            let stream_table_name := concat('STM_', tablename);
             let completed_stream_table_name := concat(database_and_schema, stream_table_name);
             let stream_view_name := concat('STM_', view_name);
             let completed_stream_view_name := concat(database_and_schema, stream_view_name);
-            let task_name := concat('TSK_', new_table.TABLE_NAME, '_CONSOLIDATION');
+            let task_name := concat('TSK_', tablename, '_CONSOLIDATION');
             let completed_task_name := concat(database_and_schema, task_name);
 
             -- Chequeamos que la tabla no esté vacia. Si está vacía no hacemos nada
@@ -358,8 +361,8 @@ $$
                     -- Creamos el task que ejecutará la consolidación.
                     let create_task_sentence := concat('CREATE OR REPLACE TASK ', completed_task_name, ' WAREHOUSE = {{warehouse}} SCHEDULE = \'5 MINUTES\' AS ');
                     create_task_sentence := concat(create_task_sentence,'call DB_INGESTION_TOOLS_{{environment}}.STREAMING.SP_CONSOLIDATE_TABLE_MERGE(');
-                    create_task_sentence := concat(create_task_sentence, '\'', new_table.TABLE_CATALOG,'\',');
-                    create_task_sentence := concat(create_task_sentence, '\'', new_table.TABLE_SCHEMA,'\',');
+                    create_task_sentence := concat(create_task_sentence, '\'', database,'\',');
+                    create_task_sentence := concat(create_task_sentence, '\'', schema,'\',');
                     create_task_sentence := concat(create_task_sentence, '\'', completed_view_name,'\',');
                     create_task_sentence := concat(create_task_sentence, '\'', completed_stream_view_name,'\',');
                     create_task_sentence := concat(create_task_sentence, '\'', completed_table_name, consolidated_table_suffix,'\',');
@@ -375,7 +378,7 @@ $$
                     let resume_task_sentence := concat('ALTER TASK ', completed_task_name, ' RESUME;');
                     execute immediate resume_task_sentence;
 
-                    let lake_path := concat(new_table.TABLE_CATALOG, '/', new_table.TABLE_SCHEMA, '/', new_table.TABLE_NAME, '/');
+                    let lake_path := concat(database, '/', schema, '/', tablename, '/');
                     let partition_expression := '';
                     IF (is_glue) THEN
                         partition_expression := 'split(GLCHANGETIME,\'.\')[0],\'YYYYMMDDHH24MISS\'';
@@ -384,7 +387,7 @@ $$
                     END IF;
                     
                     insert into TB_UNLOAD_CONFIG(CO_TABLE_CATALOG, CO_TABLE_SCHEMA, CO_TABLE_NAME, DS_PARTITION_FIELD_EXPRESION, DS_DATA_LAKE_PATH, SQ_DAY_OF_MONTH, SQ_MONTH, SQ_DAY_OF_WEEK, CO_THREAD) 
-                        select :new_table.TABLE_CATALOG, :new_table.TABLE_SCHEMA, :new_table.TABLE_NAME, :partition_expression, :lake_path, ARRAY_CONSTRUCT('*'), ARRAY_CONSTRUCT('*'), ARRAY_CONSTRUCT('*'), 1;
+                        select :database, :schema, :tablename, :partition_expression, :lake_path, ARRAY_CONSTRUCT('*'), ARRAY_CONSTRUCT('*'), ARRAY_CONSTRUCT('*'), 1;
 
                 END IF;
             END IF;
