@@ -30,5 +30,5 @@ create or replace table TB_BATCH_FIELDS_CONFIG (
     QT_LENGTH number default 0 comment 'Length of the field',
     QT_SCALE number default 0 comment 'Scale of the field',
     constraint _fields_config_pk primary key (ID_SOURCE_BATCH, DS_FIELD),
-    constraint _file_config_fk foreign key (ID_SOURCE_BATCH) references DB_INGESTION_TOOLS_{{environment}}.BATCH.TB_FILE_CONFIG(ID_SOURCE_BATCH)
+    constraint _file_config_fk foreign key (ID_SOURCE_BATCH) references DB_INGESTION_TOOLS_{{environment}}.BATCH.TB_BATCH_CONFIG(ID_SOURCE_BATCH)
 );
