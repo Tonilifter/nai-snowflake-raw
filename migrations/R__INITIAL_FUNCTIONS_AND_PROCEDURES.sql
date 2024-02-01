@@ -312,9 +312,9 @@ $$
         -- Recorremos todas las tablas Kafka
         FOR new_table IN tables_cursor DO
             -- Construimos el nombre de la tabla y la vista
-            let database := new_table.TABLE_CATALOG;
-            let schema := new_table.TABLE_SCHEMA;
-            let tablename := new_table.TABLE_NAME;
+            let database varchar := new_table.TABLE_CATALOG;
+            let schema varchar := new_table.TABLE_SCHEMA;
+            let tablename varchar := new_table.TABLE_NAME;
             let database_and_schema := concat(database,'.',schema, '.');
             let completed_table_name := concat(database_and_schema, tablename);
             let view_name := concat('VW_', tablename);
