@@ -64,9 +64,6 @@ begin
     execute immediate :create_table_sql;
 
     return 'OK';
-exception
-    when other then
-        return 'KO';
 end;
 $$;
 
@@ -136,9 +133,6 @@ begin
     execute immediate :start_task_sql;
 
     return 'OK';
-exception
-    when other then
-        return 'KO';
 end;
 $$;
 
@@ -184,14 +178,11 @@ begin
     let file_format_sql varchar := 'file_format => (type = PARQUET)';
     let file_pattern_sql varchar := 'pattern => \'' || '.*' || :external_file_path || '\'';
     let select_sql varchar := 'select ' || rtrim(fields_to_select_sql, ',') || ', cast(\''|| :ts_load || '\' as timestamp_ntz) 
-        from ' || :external_stage || '(' || :file_format_sql || ', ' || :file_pattern_sql || ')';
+        from @' || :external_stage || '(' || :file_format_sql || ', ' || :file_pattern_sql || ')';
     let copy_into_sql varchar := 'copy into ' || :target_path || ' from (' || :select_sql || ');';
     execute immediate :copy_into_sql;
 
     return 'OK';
-exception
-    when other then
-        return 'KO';
 end;
 $$;
 
@@ -261,14 +252,11 @@ begin
     let file_pattern_sql varchar := 'pattern => \'' || '.*' || :external_file_path || '\'';
 
     let select_sql varchar := 'select ' || rtrim(fields_to_select_sql, ',') || ',cast(\''|| :ts_load || '\' as timestamp_ntz)
-        from' || :external_stage || '(' || :file_format_sql || ', ' || :file_pattern_sql || ')';
+        from @' || :external_stage || '(' || :file_format_sql || ', ' || :file_pattern_sql || ')';
     let copy_into_sql varchar := 'copy into ' || :target_path || ' from (' || :select_sql || ');';
     execute immediate :copy_into_sql;
 
     return 'OK';
-exception
-    when other then
-        return 'KO';
 end;
 $$;
 
@@ -310,8 +298,5 @@ begin
     limit 1;
 
     return 'OK';
-exception
-    when other then
-        return 'KO';
 end;
 $$;
