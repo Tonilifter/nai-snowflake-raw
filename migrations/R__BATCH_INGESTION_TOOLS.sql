@@ -240,7 +240,7 @@ begin
         
     end for;
     
-    let create_file_format_sql varchar := 'create or replace file format ' || :tmp_file_format_cons || '
+    let create_file_format_sql varchar := 'create or replace temp file format ' || :tmp_file_format_cons || '
         type = \'csv\'
         skip_header = ' || cast(:file_has_header as number);
     if (not :is_fixed_width_file) then
