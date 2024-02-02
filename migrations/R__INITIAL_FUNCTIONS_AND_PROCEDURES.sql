@@ -387,7 +387,7 @@ $$
                     END IF;
                     
                     insert into DB_INGESTION_TOOLS_{{environment}}.STREAMING.TB_UNLOAD_CONFIG(CO_TABLE_CATALOG, CO_TABLE_SCHEMA, CO_TABLE_NAME, DS_PARTITION_FIELD_EXPRESION, DS_DATA_LAKE_PATH, SQ_DAY_OF_MONTH, SQ_MONTH, SQ_DAY_OF_WEEK, CO_THREAD) 
-                        select :database, :schema, :tablename, :partition_expression, :lake_path, ARRAY_CONSTRUCT('*'), ARRAY_CONSTRUCT('*'), ARRAY_CONSTRUCT('*'), 1;
+                        select :database, :schema, :tablename, :partition_expression, :lake_path, ARRAY_CONSTRUCT(), ARRAY_CONSTRUCT(), ARRAY_CONSTRUCT(), 1;
 
                 END IF;
             END IF;
