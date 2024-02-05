@@ -245,9 +245,7 @@ begin
         
     end for;
     
-    let create_file_format_sql varchar := 'create or replace temp file format ' || :tmp_file_format_cons || '
-        type = \'csv\'
-        skip_header = ' || cast(:file_has_header as number);
+    let create_file_format_sql varchar := 'create or replace temp file format ' || :tmp_file_format_cons || ' type = \'csv\' skip_header = ' || cast(:file_has_header as number) || ' encoding = \'WINDOWS1252\'';
     if (not :is_fixed_width_file) then
         create_file_format_sql := :create_file_format_sql || ' field_delimiter = \'' || :file_separator || '\'';
     end if;

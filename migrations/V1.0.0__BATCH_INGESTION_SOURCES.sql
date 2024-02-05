@@ -10,7 +10,7 @@ create or replace table TB_BATCH_CONFIG (
     CO_TARGET_CATALOG varchar not null comment 'Target catalog in which the field will be loaded. It will also be part of the path for the file in stage',
     CO_TARGET_SCHEMA varchar not null comment 'Target schema in which the field will be loaded. It will also be part of the path for the file in stage',
     CO_TARGET_TABLE varchar not null comment 'Target table in which the field will be loaded. It will also be part of the path for the file in stage',
-    DS_ADL_PATH varchar default concat('/', CO_TARGET_CATALOG, '/', CO_TARGET_SCHEMA, '/', CO_TARGET_TABLE, '/') comment 'This path along with the date of the process will be location of the file in Azure Data Lake',
+    DS_ADL_PATH varchar default concat(CO_TARGET_CATALOG, '/', CO_TARGET_SCHEMA, '/', CO_TARGET_TABLE, '/') comment 'This path along with the date of the process will be location of the file in Azure Data Lake',
     DS_EXTERNAL_STAGE varchar not null comment 'Stage in which the source with the information is allocated',
     DS_COPY_BOOK_PATH varchar not null comment 'Route of ADLS in which the parsing copy book has been placed',
     DS_FILE_SEPARATOR varchar default '' comment 'Column separator for this file. Specific for batch files',
