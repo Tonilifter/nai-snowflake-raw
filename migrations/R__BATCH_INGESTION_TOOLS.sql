@@ -129,7 +129,7 @@ begin
             'TS_LOAD' || '\');';
     execute immediate create_task_sentence;
 
-    let start_task_sql := 'alter task ' || :consolidation_task_path || ' resume';
+    let start_task_sql varchar := 'alter task ' || :consolidation_task_path || ' resume';
     execute immediate :start_task_sql;
 
     return 'OK';
