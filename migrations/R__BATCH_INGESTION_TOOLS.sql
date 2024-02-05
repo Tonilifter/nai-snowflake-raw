@@ -118,7 +118,7 @@ begin
     -- Create and start the consolidation task
     let consolidation_task varchar := 'TSK_' || :target_table || '_CONSOLIDATION';
     let consolidation_task_path varchar := :target_catalog || '.' || :target_schema || '.' || :consolidation_task;
-    let create_task_sql := 'create or replace task ' || :consolidation_task_path || ' warehouse = {{warehouse}} schedule = \'120 MINUTES\' as ' ||
+    let create_task_sql varchar := 'create or replace task ' || :consolidation_task_path || ' warehouse = {{warehouse}} schedule = \'120 MINUTES\' as ' ||
         'call DB_INGESTION_TOOLS_{{environment}}.STREAMING.SP_CONSOLIDATE_TABLE_MERGE(\'' || 
             :target_catalog || '\',\'' ||
             :target_schema || '\',\'' ||
@@ -149,6 +149,7 @@ execute as caller
 as
 $$
 declare
+    tmp_file_format_cons varchar := 'DB_INGESTION_TOOLS_{{environment}}.BATCH.FF_BATCH_' || :target_id;
     ts_load timestamp_ntz := current_timestamp();
 begin
     -- Information about the target table fields
@@ -174,8 +175,12 @@ begin
         fields_to_select_sql := :fields_to_select_sql || :field_select_sql;
     end for;
 
+    -- Generate the statemenet to create a new file format for this load
+    let create_file_format_sql varchar := 'create or replace temp file format ' || :tmp_file_format_cons || ' type = \'parquet\'';
+    execute immediate :create_file_format_sql;
+
     -- Generate the statement to copy the data from the file in ADLS to the target table
-    let file_format_sql varchar := 'file_format => (type = PARQUET)';
+    let file_format_sql varchar := 'file_format => ' || :tmp_file_format_cons;
     let file_pattern_sql varchar := 'pattern => \'' || '.*' || :external_file_path || '\'';
     let select_sql varchar := 'select ' || rtrim(fields_to_select_sql, ',') || ', cast(\''|| :ts_load || '\' as timestamp_ntz) 
         from @' || :external_stage || '(' || :file_format_sql || ', ' || :file_pattern_sql || ')';
@@ -202,7 +207,7 @@ execute as caller
 as
 $$
 declare
-    tmp_file_format_cons varchar := 'DB_INGESTION_TOOLS_{{environment}}.BATCH.FF_BATCH';
+    tmp_file_format_cons varchar := 'DB_INGESTION_TOOLS_{{environment}}.BATCH.FF_BATCH_' || :target_id;
     ts_load timestamp_ntz := current_timestamp();
 begin
     -- Information about the target table fields
@@ -291,9 +296,9 @@ begin
         lh.ROW_COUNT as QT_TOTAL_ROWS,
         lh.ROW_PARSED as QT_LOADED_ROWS
     from identifier(:load_history_view) lh
-    where FILE_NAME like ('%' || :file_name)
-        and TABLE_NAME = :target_table
-        and SCHEMA_NAME = :target_schema
+    where FILE_NAME like ('%' || :ds_file_name)
+        and TABLE_NAME = :co_table
+        and SCHEMA_NAME = :co_schema
     order by LAST_LOAD_TIME DESC
     limit 1;
 
