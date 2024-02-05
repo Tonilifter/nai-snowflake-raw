@@ -127,7 +127,7 @@ begin
             :target_table_path || '_CONSOLIDATED\',\'' ||
             'PRIMARY_KEY_COLUMNS' || '\',\'' ||
             'TS_LOAD' || '\');';
-    execute immediate create_task_sentence;
+    execute immediate create_task_sql;
 
     let start_task_sql varchar := 'alter task ' || :consolidation_task_path || ' resume';
     execute immediate :start_task_sql;
