@@ -63,7 +63,7 @@ begin
     let create_table_sql varchar := 'create table if not exists ' || :target_table_path || '(' || :target_fields_sql || ') enable_schema_evolution = true;';
     execute immediate :create_table_sql;
 
-    return 'OK';
+    return :create_table_sql;
 end;
 $$;
 
@@ -132,7 +132,7 @@ begin
     let start_task_sql varchar := 'alter task ' || :consolidation_task_path || ' resume';
     execute immediate :start_task_sql;
 
-    return 'OK';
+    return :start_task_sql;
 end;
 $$;
 
@@ -187,7 +187,7 @@ begin
     let copy_into_sql varchar := 'copy into ' || :target_path || ' from (' || :select_sql || ');';
     execute immediate :copy_into_sql;
 
-    return 'OK';
+    return :copy_into_sql;
 end;
 $$;
 
@@ -261,7 +261,7 @@ begin
     let copy_into_sql varchar := 'copy into ' || :target_path || ' from (' || :select_sql || ');';
     execute immediate :copy_into_sql;
 
-    return 'OK';
+    return :copy_into_sql;
 end;
 $$;
 
@@ -302,6 +302,6 @@ begin
     order by LAST_LOAD_TIME DESC
     limit 1;
 
-    return 'OK';
+    return 'Updated';
 end;
 $$;
