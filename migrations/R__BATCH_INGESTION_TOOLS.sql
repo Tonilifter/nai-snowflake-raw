@@ -112,13 +112,13 @@ begin
     -- Create the consolidation stream
     let target_stream varchar := 'STM_' || :target_view; 
     let target_stream_path varchar := :target_catalog || '.' || :target_schema || '.' || :target_stream;
-    let create_stream_sql varchar := 'create or replace stream if not exists ' || :target_stream_path || ' on view ' || :target_view_path || ' APPEND_ONLY = TRUE SHOW_INITIAL_ROWS = TRUE;';
+    let create_stream_sql varchar := 'create stream if not exists ' || :target_stream_path || ' on view ' || :target_view_path || ' APPEND_ONLY = TRUE SHOW_INITIAL_ROWS = TRUE;';
     execute immediate create_stream_sql;
 
     -- Create and start the consolidation task
     let consolidation_task varchar := 'TSK_' || :target_table || '_CONSOLIDATION';
     let consolidation_task_path varchar := :target_catalog || '.' || :target_schema || '.' || :consolidation_task;
-    let create_task_sql varchar := 'create or replace task if not exists ' || :consolidation_task_path || ' warehouse = {{warehouse}} schedule = \'120 MINUTES\' as ' ||
+    let create_task_sql varchar := 'create task if not exists ' || :consolidation_task_path || ' warehouse = {{warehouse}} schedule = \'120 MINUTES\' as ' ||
         'call DB_INGESTION_TOOLS_{{environment}}.STREAMING.SP_CONSOLIDATE_TABLE_MERGE(\'' || 
             :target_catalog || '\',\'' ||
             :target_schema || '\',\'' ||
