@@ -104,7 +104,7 @@ begin
     end if;
 
     -- Create the consolidation view
-    let create_view_sql varchar := 'call DB_INGESTIONS_TOOLS_{{environment}}.STREAMING.SP_CREATE_GLUE_VIEW(\'' ||
+    let create_view_sql varchar := 'call DB_INGESTION_TOOLS_{{environment}}.STREAMING.SP_CREATE_GLUE_VIEW(\'' ||
         :target_table_path || '\',\'' ||
         :target_view_path || '\');';
     execute immediate :create_view_sql;
