@@ -97,7 +97,7 @@ begin
     let target_view_path varchar := :target_catalog || '.' || :target_schema || '.' || :target_view;
 
     -- Check if the consolidation structures have been created before
-    --let information_schema_views varchar := :target_catalog || '.INFORMATION_SCHEMA.VIEWS';
+    let information_schema_views varchar := :target_catalog || '.INFORMATION_SCHEMA.VIEWS';
     fl_already_created_view := (select count(*) from identifier(:information_schema_views) where TABLE_CATALOG = :target_catalog and TABLE_SCHEMA = :target_schema and TABLE_NAME = :target_view);
     if (:fl_already_created_view = 1) then
         return 'OK';
