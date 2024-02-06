@@ -118,7 +118,7 @@ begin
     -- Create and start the consolidation task
     let consolidation_task varchar := 'TSK_' || :target_table || '_CONSOLIDATION';
     let consolidation_task_path varchar := :target_catalog || '.' || :target_schema || '.' || :consolidation_task;
-    let create_task_sql varchar := 'create task if not exists ' || :consolidation_task_path || ' warehouse = {{warehouse}} schedule = \'120 MINUTES\' as ' ||
+    let create_task_sql varchar := 'create task if not exists ' || :consolidation_task_path || ' warehouse = {{warehousebatchcon}} schedule = \'120 MINUTES\' as ' ||
         'call DB_INGESTION_TOOLS_{{environment}}.STREAMING.SP_CONSOLIDATE_TABLE_MERGE(\'' || 
             :target_catalog || '\',\'' ||
             :target_schema || '\',\'' ||

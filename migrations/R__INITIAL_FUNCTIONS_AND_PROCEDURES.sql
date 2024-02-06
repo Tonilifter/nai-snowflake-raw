@@ -359,24 +359,35 @@ $$
                     execute immediate create_stream_table_sentence;
 
                     -- Creamos el task que ejecutará la consolidación.
-                    let create_task_sentence := concat('CREATE OR REPLACE TASK ', completed_task_name, ' WAREHOUSE = {{warehouse}} SCHEDULE = \'5 MINUTES\' AS ');
-                    create_task_sentence := concat(create_task_sentence,'call DB_INGESTION_TOOLS_{{environment}}.STREAMING.SP_CONSOLIDATE_TABLE_MERGE(');
-                    create_task_sentence := concat(create_task_sentence, '\'', database,'\',');
-                    create_task_sentence := concat(create_task_sentence, '\'', schema,'\',');
-                    create_task_sentence := concat(create_task_sentence, '\'', completed_view_name,'\',');
-                    create_task_sentence := concat(create_task_sentence, '\'', completed_stream_view_name,'\',');
-                    create_task_sentence := concat(create_task_sentence, '\'', completed_table_name, consolidated_table_suffix,'\',');
-                    create_task_sentence := concat(create_task_sentence, '\'PRIMARY_KEY_COLUMNS\',');
                     IF (is_glue) THEN
-                        create_task_sentence := concat(create_task_sentence, '\'GLCHANGETIME\'');
+                        let create_task_sentence := concat('CREATE OR REPLACE TASK ', completed_task_name, ' WAREHOUSE = {{warehousesnpgluecon}} SCHEDULE = \'5 MINUTES\' AS ');
+                        create_task_sentence := concat(create_task_sentence,'call DB_INGESTION_TOOLS_{{environment}}.STREAMING.SP_CONSOLIDATE_TABLE_MERGE(');
+                        create_task_sentence := concat(create_task_sentence, '\'', database,'\',');
+                        create_task_sentence := concat(create_task_sentence, '\'', schema,'\',');
+                        create_task_sentence := concat(create_task_sentence, '\'', completed_view_name,'\',');
+                        create_task_sentence := concat(create_task_sentence, '\'', completed_stream_view_name,'\',');
+                        create_task_sentence := concat(create_task_sentence, '\'', completed_table_name, consolidated_table_suffix,'\',');
+                        create_task_sentence := concat(create_task_sentence, '\'PRIMARY_KEY_COLUMNS\',');
+                        create_task_sentence := concat(create_task_sentence, '\'GLCHANGETIME\');');
+                        execute immediate create_task_sentence;
+                        -- Ejecutamos el nuevo task
+                        let resume_task_sentence := concat('ALTER TASK ', completed_task_name, ' RESUME;');
+                        execute immediate resume_task_sentence;
                     ELSE
-                        create_task_sentence := concat(create_task_sentence, '\'OFFSET\'');
+                        let create_task_sentence := concat('CREATE OR REPLACE TASK ', completed_task_name, ' WAREHOUSE = {{warehousekafkacon}} SCHEDULE = \'5 MINUTES\' AS ');
+                        create_task_sentence := concat(create_task_sentence,'call DB_INGESTION_TOOLS_{{environment}}.STREAMING.SP_CONSOLIDATE_TABLE_MERGE(');
+                        create_task_sentence := concat(create_task_sentence, '\'', database,'\',');
+                        create_task_sentence := concat(create_task_sentence, '\'', schema,'\',');
+                        create_task_sentence := concat(create_task_sentence, '\'', completed_view_name,'\',');
+                        create_task_sentence := concat(create_task_sentence, '\'', completed_stream_view_name,'\',');
+                        create_task_sentence := concat(create_task_sentence, '\'', completed_table_name, consolidated_table_suffix,'\',');
+                        create_task_sentence := concat(create_task_sentence, '\'PRIMARY_KEY_COLUMNS\',');
+                        create_task_sentence := concat(create_task_sentence, '\'OFFSET\');');
+                        execute immediate create_task_sentence;
+                        -- Ejecutamos el nuevo task
+                        let resume_task_sentence := concat('ALTER TASK ', completed_task_name, ' RESUME;');
+                        execute immediate resume_task_sentence;
                     END IF;
-                    create_task_sentence := concat(create_task_sentence, ');');
-                    execute immediate create_task_sentence;
-                    -- Ejecutamos el nuevo task
-                    let resume_task_sentence := concat('ALTER TASK ', completed_task_name, ' RESUME;');
-                    execute immediate resume_task_sentence;
 
                     let lake_path := concat(database, '/', schema, '/', tablename, '/');
                     let partition_expression := '';
@@ -388,7 +399,6 @@ $$
                     
                     insert into DB_INGESTION_TOOLS_{{environment}}.STREAMING.TB_UNLOAD_CONFIG(CO_TABLE_CATALOG, CO_TABLE_SCHEMA, CO_TABLE_NAME, DS_PARTITION_FIELD_EXPRESION, DS_DATA_LAKE_PATH, SQ_DAY_OF_MONTH, SQ_MONTH, SQ_DAY_OF_WEEK, CO_THREAD) 
                         select :database, :schema, :tablename, :partition_expression, :lake_path, ARRAY_CONSTRUCT(), ARRAY_CONSTRUCT(), ARRAY_CONSTRUCT(), 1;
-
                 END IF;
             END IF;
         END FOR;
@@ -462,24 +472,46 @@ $$
                 execute immediate create_stream_table_sentence;
 
                 -- Creamos el task que ejecutará la consolidación.
-                let create_task_sentence := concat('CREATE OR REPLACE TASK ', completed_task_name, ' WAREHOUSE = {{warehouse}} SCHEDULE = \'5 MINUTES\' AS ');
-                create_task_sentence := concat(create_task_sentence,'call DB_INGESTION_TOOLS_{{environment}}.STREAMING.SP_CONSOLIDATE_TABLE_MERGE(');
-                create_task_sentence := concat(create_task_sentence, '\'', origin_database,'\',');
-                create_task_sentence := concat(create_task_sentence, '\'', origin_schema,'\',');
-                create_task_sentence := concat(create_task_sentence, '\'', completed_view_name,'\',');
-                create_task_sentence := concat(create_task_sentence, '\'', completed_stream_view_name,'\',');
-                create_task_sentence := concat(create_task_sentence, '\'', completed_table_name, consolidated_table_suffix,'\',');
-                create_task_sentence := concat(create_task_sentence, '\'PRIMARY_KEY_COLUMNS\',');
                 IF (is_glue) THEN
-                    create_task_sentence := concat(create_task_sentence, '\'GLCHANGETIME\'');
+                    let create_task_sentence := concat('CREATE OR REPLACE TASK ', completed_task_name, ' WAREHOUSE = {{warehousesnpgluecon}} SCHEDULE = \'5 MINUTES\' AS ');
+                    create_task_sentence := concat(create_task_sentence,'call DB_INGESTION_TOOLS_{{environment}}.STREAMING.SP_CONSOLIDATE_TABLE_MERGE(');
+                    create_task_sentence := concat(create_task_sentence, '\'', database,'\',');
+                    create_task_sentence := concat(create_task_sentence, '\'', schema,'\',');
+                    create_task_sentence := concat(create_task_sentence, '\'', completed_view_name,'\',');
+                    create_task_sentence := concat(create_task_sentence, '\'', completed_stream_view_name,'\',');
+                    create_task_sentence := concat(create_task_sentence, '\'', completed_table_name, consolidated_table_suffix,'\',');
+                    create_task_sentence := concat(create_task_sentence, '\'PRIMARY_KEY_COLUMNS\',');
+                    create_task_sentence := concat(create_task_sentence, '\'GLCHANGETIME\');');
+                    execute immediate create_task_sentence;
+                    -- Ejecutamos el nuevo task
+                    let resume_task_sentence := concat('ALTER TASK ', completed_task_name, ' RESUME;');
+                    execute immediate resume_task_sentence;
                 ELSE
-                    create_task_sentence := concat(create_task_sentence, '\'OFFSET\'');
+                    let create_task_sentence := concat('CREATE OR REPLACE TASK ', completed_task_name, ' WAREHOUSE = {{warehousekafkacon}} SCHEDULE = \'5 MINUTES\' AS ');
+                    create_task_sentence := concat(create_task_sentence,'call DB_INGESTION_TOOLS_{{environment}}.STREAMING.SP_CONSOLIDATE_TABLE_MERGE(');
+                    create_task_sentence := concat(create_task_sentence, '\'', database,'\',');
+                    create_task_sentence := concat(create_task_sentence, '\'', schema,'\',');
+                    create_task_sentence := concat(create_task_sentence, '\'', completed_view_name,'\',');
+                    create_task_sentence := concat(create_task_sentence, '\'', completed_stream_view_name,'\',');
+                    create_task_sentence := concat(create_task_sentence, '\'', completed_table_name, consolidated_table_suffix,'\',');
+                    create_task_sentence := concat(create_task_sentence, '\'PRIMARY_KEY_COLUMNS\',');
+                    create_task_sentence := concat(create_task_sentence, '\'OFFSET\');');
+                    execute immediate create_task_sentence;
+                    -- Ejecutamos el nuevo task
+                    let resume_task_sentence := concat('ALTER TASK ', completed_task_name, ' RESUME;');
+                    execute immediate resume_task_sentence;
                 END IF;
-                create_task_sentence := concat(create_task_sentence, ');');
-                execute immediate create_task_sentence;
-                -- Ejecutamos el nuevo task
-                let resume_task_sentence := concat('ALTER TASK ', completed_task_name, ' RESUME;');
-                execute immediate resume_task_sentence;
+
+                let lake_path := concat(database, '/', schema, '/', tablename, '/');
+                let partition_expression := '';
+                IF (is_glue) THEN
+                    partition_expression := 'split(GLCHANGETIME,\'.\')[0],\'YYYYMMDDHH24MISS\'';
+                ELSE
+                    partition_expression := 'RECORD_CONTENT:A_TIMSTAMP';
+                END IF;
+                
+                insert into DB_INGESTION_TOOLS_{{environment}}.STREAMING.TB_UNLOAD_CONFIG(CO_TABLE_CATALOG, CO_TABLE_SCHEMA, CO_TABLE_NAME, DS_PARTITION_FIELD_EXPRESION, DS_DATA_LAKE_PATH, SQ_DAY_OF_MONTH, SQ_MONTH, SQ_DAY_OF_WEEK, CO_THREAD) 
+                    select :database, :schema, :tablename, :partition_expression, :lake_path, ARRAY_CONSTRUCT(), ARRAY_CONSTRUCT(), ARRAY_CONSTRUCT(), 1;
             END IF;
         END IF;
         RETURN 'SUCCESS';
