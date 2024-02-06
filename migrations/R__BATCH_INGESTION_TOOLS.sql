@@ -78,7 +78,7 @@ declare
     target_catalog varchar;
     target_schema varchar;
     target_table varchar;
-    fl_already_created_view number = 0;
+    fl_already_created_view number := 0;
 begin
     -- Information about the target table fields
     let batch_config_rs resultset := (
