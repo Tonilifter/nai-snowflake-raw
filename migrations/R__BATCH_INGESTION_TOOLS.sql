@@ -78,7 +78,7 @@ declare
     target_catalog varchar;
     target_schema varchar;
     target_table varchar;
-    fl_already_created_view number;
+    fl_already_created_view number = 0;
 begin
     -- Information about the target table fields
     let batch_config_rs resultset := (
@@ -97,8 +97,8 @@ begin
     let target_view_path varchar := :target_catalog || '.' || :target_schema || '.' || :target_view;
 
     -- Check if the consolidation structures have been created before
-    let information_schema_views varchar := :target_catalog || '.INFORMATION_SCHEMA.VIEWS';
-    select count(*) into :fl_already_created_view FROM identifier(:information_schema_views) where TABLE_CATALOG = :target_catalog and table_schema = :target_schema and TABLE_NAME = :target_view;
+    --let information_schema_views varchar := :target_catalog || '.INFORMATION_SCHEMA.VIEWS';
+    --select count(*) into :fl_already_created_view FROM identifier(:information_schema_views) where TABLE_CATALOG = :target_catalog and table_schema = :target_schema and TABLE_NAME = :target_view;
     if (:fl_already_created_view = 1) then
         return 'OK';
     end if;
