@@ -526,7 +526,7 @@ $$
 ;
 
 CREATE OR REPLACE PROCEDURE DB_INGESTION_TOOLS_{{environment}}.STREAMING.SP_UNLOAD_TABLE (
-	id int,
+	id int, -- Identificador de la configuracion de descarga de la tabla
 	table_catalog VARCHAR,
 	table_schema VARCHAR,
 	table_name VARCHAR,
