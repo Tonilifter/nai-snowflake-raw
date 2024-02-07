@@ -43,7 +43,7 @@ begin
         copy into ' || :ds_target_catalog || '.' || :ds_target_schema || '.' || :ds_target_table || '
         from (
             select parse_json(parse_json($1):RECORD_METADATA) as RECORD_METADATA, parse_json(parse_json($1):RECORD_CONTENT) as RECORD_CONTENT
-            from @st_unload
+            from @streaming.st_unload
         )
         PATTERN = \'' || :date_regex_pattern || '\'
         FILE_FORMAT = (TYPE = \'parquet\')
