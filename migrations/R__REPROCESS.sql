@@ -20,13 +20,13 @@ $$
 declare
     date_format varchar := 'YYYY/MM/DD';
 begin
-    let start_date varchar := to_char(:dt_from, :date_format);
-    let end_date varchar := to_char(:dt_to, :date_format);
+    let start_date varchar := to_date(:dt_from, :date_format);
+    let end_date varchar := to_date(:dt_to, :date_format);
 
     -- Diference in days between start and end
-    let day_difference integer := (select datediff('day', to_date(:start_date), to_date(:end_date))::integer) + 1;
+    let day_difference integer := (select datediff('day', :start_date, :end_date)::integer) + 1;
     let all_dates resultset := (
-        select to_char(dateadd(DAY, SEQ4(), to_date(:start_date)), 'YYYY/MM/DD') as my_date
+        select to_char(dateadd(DAY, SEQ4(), :start_date), 'YYYY/MM/DD') as my_date
         from TABLE(generator(rowcount => :day_difference))
     );
 
