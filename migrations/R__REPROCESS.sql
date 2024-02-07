@@ -24,7 +24,7 @@ begin
     let end_date varchar := to_char(:dt_to, :date_format);
 
     -- Diference in days between start and end
-    let day_difference integer := (select datediff('day', to_date(:start_date, :date_format), to_date(:end_date, :date_format))::integer) + 1;
+    let day_difference integer := (select datediff('day', to_date(:start_date), to_date(:end_date))::integer) + 1;
     let all_dates resultset := (
         select to_char(dateadd(DAY, SEQ4(), to_date(:start_date, :date_format)), 'YYYY/MM/DD') as my_date
         from TABLE(generator(rowcount => :day_difference))
