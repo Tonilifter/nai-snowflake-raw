@@ -545,13 +545,13 @@ $$
     query := concat('copy into @STG_UNLOAD/',data_lake_path,' from (select * from ', table_name_join,')',' partition by (to_char(date(',partition_field_expression,'),\'YYYY/MM/DD\')) file_format = (type = \'parquet\') header = true',';');
     execute immediate query;
 
-    query := concat('UPDATE DB_INGESTION_TOOLS_{{environment}}.STREAMING.TB_UNLOAD_CONFIG SET LAST_LOAD = current_date(), LAST_STATUS = \'SUCCESS\', TS_SNAPSHOT = current_timestamp()  WHERE ID = ', id);
+    query := concat('UPDATE DB_INGESTION_TOOLS_{{environment}}.STREAMING.TB_UNLOAD_CONFIG SET DT_LAST_LOAD = current_date(), DS_LAST_STATUS = \'SUCCESS\', TS_SNAPSHOT = current_timestamp()  WHERE ID = ', id);
     execute immediate query;
 
     RETURN 'SUCCESS';
   EXCEPTION
       WHEN OTHER THEN
-        query := concat('UPDATE DB_INGESTION_TOOLS_{{environment}}.STREAMING.TB_UNLOAD_CONFIG SET LAST_LOAD = current_date(), LAST_STATUS = \'ERROR\', TS_SNAPSHOT = current_timestamp() WHERE ID = ', id);
+        query := concat('UPDATE DB_INGESTION_TOOLS_{{environment}}.STREAMING.TB_UNLOAD_CONFIG SET DT_LAST_LOAD = current_date(), DS_LAST_STATUS = \'ERROR\', TS_SNAPSHOT = current_timestamp() WHERE ID = ', id);
         execute immediate query;
         RETURN 'ERROR';
   END;
