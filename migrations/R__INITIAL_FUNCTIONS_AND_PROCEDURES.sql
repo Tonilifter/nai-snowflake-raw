@@ -526,7 +526,7 @@ $$
 ;
 
 CREATE OR REPLACE PROCEDURE DB_INGESTION_TOOLS_{{environment}}.STREAMING.SP_UNLOAD_TABLE (
-	id int, -- Identificador de la configuracion de descarga de la tabla
+	id int,
 	table_catalog VARCHAR,
 	table_schema VARCHAR,
 	table_name VARCHAR,
@@ -542,18 +542,10 @@ $$
     query varchar;
     table_name_join varchar := concat(:table_catalog,'.',:table_schema,'.STM_', :table_name);
   BEGIN
-    query := concat('copy into @STG_UNLOAD/',data_lake_path,' from (select * from ', table_name_join,')',' partition by (to_char(date(',partition_field_expression,'),\'YYYY/MM/DD\')) file_format = (type = \'parquet\') header = true',';');
-    execute immediate query;
-
-    query := concat('UPDATE DB_INGESTION_TOOLS_{{environment}}.STREAMING.TB_UNLOAD_CONFIG SET DT_LAST_LOAD = current_date(), DS_LAST_STATUS = \'SUCCESS\', TS_SNAPSHOT = current_timestamp()  WHERE ID = ', id);
+    query := concat('copy into @DB_INGESTION_TOOLS_{{environment}}.STREAMING.STG_UNLOAD/',data_lake_path,' from (select * from ', table_name_join,')',' partition by (to_char(date(',partition_field_expression,'),\'YYYY/MM/DD\')) file_format = (type = \'parquet\') header = true',';');
     execute immediate query;
 
     RETURN 'SUCCESS';
-  EXCEPTION
-      WHEN OTHER THEN
-        query := concat('UPDATE DB_INGESTION_TOOLS_{{environment}}.STREAMING.TB_UNLOAD_CONFIG SET DT_LAST_LOAD = current_date(), DS_LAST_STATUS = \'ERROR\', TS_SNAPSHOT = current_timestamp() WHERE ID = ', id);
-        execute immediate query;
-        RETURN 'ERROR';
   END;
 $$
 ;
