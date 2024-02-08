@@ -16,12 +16,15 @@ as
 $$
 declare
     configuration_file_path varchar := :ds_config_catalog || '/' || :ds_config_schema || '/' || :ds_config_table || '/' || :ds_config_file;
-    configuration_table_path varchar := :ds_config_catalog || '.' || :ds_config_schema || '.' || :ds_config_table;
+    configuration_table_namespace varchar := :ds_config_catalog || '.' || :ds_config_schema || '.' || :ds_config_table;
 begin
 
     -- Execute the copy into query to insert the configuration records into the parametrization table
     let copy_config_sql varchar := '';
-    copy_config_sql := configuration_file_path;
+    copy_config_sql := 'copy into ' || :configuration_table_namespace ||
+        ' from @STREAMING.STG_UNLOAD' ||
+        ' files = ' || :configuration_file_path ||
+        ' file_format = (type = \'CSV\')';
     --execute immediate :copy_config_sql;
 
     return :copy_config_sql;
