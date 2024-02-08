@@ -391,14 +391,17 @@ $$
 
                     let lake_path := concat(database, '/', schema, '/', tablename, '/');
                     let partition_expression := '';
+                    let unload_warehouse := '';
                     IF (is_glue) THEN
                         partition_expression := 'split(GLCHANGETIME,\'.\')[0],\'YYYYMMDDHH24MISS\'';
+                        unload_warehouse := '{{warehouseunloadsnpglue}}';
                     ELSE
                         partition_expression := 'RECORD_CONTENT:A_TIMSTAMP';
+                        unload_warehouse := '{{warehouseunloadkafka}}';
                     END IF;
                     
-                    insert into DB_INGESTION_TOOLS_{{environment}}.STREAMING.TB_UNLOAD_CONFIG(CO_TABLE_CATALOG, CO_TABLE_SCHEMA, CO_TABLE_NAME, DS_PARTITION_FIELD_EXPRESION, DS_DATA_LAKE_PATH, SQ_DAY_OF_MONTH, SQ_MONTH, SQ_DAY_OF_WEEK, CO_THREAD) 
-                        select :database, :schema, :tablename, :partition_expression, :lake_path, ARRAY_CONSTRUCT(), ARRAY_CONSTRUCT(), ARRAY_CONSTRUCT(), 1;
+                    insert into DB_INGESTION_TOOLS_{{environment}}.STREAMING.TB_UNLOAD_CONFIG(CO_TABLE_CATALOG, CO_TABLE_SCHEMA, CO_TABLE_NAME, DS_PARTITION_FIELD_EXPRESION, DS_DATA_LAKE_PATH, DS_WAREHOUSE, DS_ROLE, SQ_DAY_OF_MONTH, SQ_MONTH, SQ_DAY_OF_WEEK, CO_THREAD) 
+                        select :database, :schema, :tablename, :partition_expression, :lake_path, :unload_warehouse, '{{environment}}_LND_AUTOMATION_FR',  ARRAY_CONSTRUCT(), ARRAY_CONSTRUCT(), ARRAY_CONSTRUCT(6), 1;
                 END IF;
             END IF;
         END FOR;
@@ -504,14 +507,17 @@ $$
 
                 let lake_path := concat(database, '/', schema, '/', tablename, '/');
                 let partition_expression := '';
+                let unload_warehouse := '';
                 IF (is_glue) THEN
                     partition_expression := 'split(GLCHANGETIME,\'.\')[0],\'YYYYMMDDHH24MISS\'';
+                    unload_warehouse := '{{warehouseunloadsnpglue}}';
                 ELSE
                     partition_expression := 'RECORD_CONTENT:A_TIMSTAMP';
+                    unload_warehouse := '{{warehouseunloadkafka}}';
                 END IF;
                 
-                insert into DB_INGESTION_TOOLS_{{environment}}.STREAMING.TB_UNLOAD_CONFIG(CO_TABLE_CATALOG, CO_TABLE_SCHEMA, CO_TABLE_NAME, DS_PARTITION_FIELD_EXPRESION, DS_DATA_LAKE_PATH, SQ_DAY_OF_MONTH, SQ_MONTH, SQ_DAY_OF_WEEK, CO_THREAD) 
-                    select :database, :schema, :tablename, :partition_expression, :lake_path, ARRAY_CONSTRUCT(), ARRAY_CONSTRUCT(), ARRAY_CONSTRUCT(), 1;
+                insert into DB_INGESTION_TOOLS_{{environment}}.STREAMING.TB_UNLOAD_CONFIG(CO_TABLE_CATALOG, CO_TABLE_SCHEMA, CO_TABLE_NAME, DS_PARTITION_FIELD_EXPRESION, DS_DATA_LAKE_PATH, DS_WAREHOUSE, DS_ROLE, SQ_DAY_OF_MONTH, SQ_MONTH, SQ_DAY_OF_WEEK, CO_THREAD) 
+                    select :database, :schema, :tablename, :partition_expression, :lake_path, :unload_warehouse, '{{environment}}_LND_AUTOMATION_FR', ARRAY_CONSTRUCT(), ARRAY_CONSTRUCT(), ARRAY_CONSTRUCT(6), 1;
             END IF;
         END IF;
         RETURN 'SUCCESS';
@@ -536,18 +542,10 @@ $$
     query varchar;
     table_name_join varchar := concat(:table_catalog,'.',:table_schema,'.STM_', :table_name);
   BEGIN
-    query := concat('copy into @STG_UNLOAD/',data_lake_path,' from (select * from ', table_name_join,')',' partition by (to_char(date(',partition_field_expression,'),\'YYYY/MM/DD\')) file_format = (type = \'parquet\') header = true',';');
-    execute immediate query;
-
-    query := concat('UPDATE DB_INGESTION_TOOLS_{{environment}}.STREAMING.TB_UNLOAD_CONFIG SET LAST_LOAD = current_date(), LAST_STATUS = \'SUCCESS\', TS_SNAPSHOT = current_timestamp()  WHERE ID = ', id);
+    query := concat('copy into @DB_INGESTION_TOOLS_{{environment}}.STREAMING.STG_UNLOAD/',data_lake_path,' from (select * from ', table_name_join,')',' partition by (to_char(date(',partition_field_expression,'),\'YYYY/MM/DD\')) file_format = (type = \'parquet\') header = true',';');
     execute immediate query;
 
     RETURN 'SUCCESS';
-  EXCEPTION
-      WHEN OTHER THEN
-        query := concat('UPDATE DB_INGESTION_TOOLS_{{environment}}.STREAMING.TB_UNLOAD_CONFIG SET LAST_LOAD = current_date(), LAST_STATUS = \'ERROR\', TS_SNAPSHOT = current_timestamp() WHERE ID = ', id);
-        execute immediate query;
-        RETURN 'ERROR';
   END;
 $$
 ;
