@@ -49,5 +49,7 @@ begin
         FILE_FORMAT = (TYPE = \'parquet\')
     ';
     execute immediate :copy_from_unload_sql;
+
+    return :copy_from_unload_sql;
 end;
 $$;
